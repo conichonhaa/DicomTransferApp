@@ -307,6 +307,7 @@ namespace DicomTransferApp
             string patientIdTrouve = null;
             string nomTrouve = null;
             string dateNaissanceTrouvee = null;
+            bool trouvePar_OtherPatientIDs = false; // Nouveau flag
 
             // ═══════════════════════════════════════════════════════════════════════
             // ÉTAPE 1 : Recherche directe avec OtherPatientIDs (0010,1000)
@@ -338,6 +339,7 @@ namespace DicomTransferApp
                         patientIdTrouve = res.Dataset.GetSingleValueOrDefault(DicomTag.PatientID, "");
                         nomTrouve = res.Dataset.GetSingleValueOrDefault(DicomTag.PatientName, "");
                         dateNaissanceTrouvee = res.Dataset.GetSingleValueOrDefault(DicomTag.PatientBirthDate, "");
+                        trouvePar_OtherPatientIDs = true; // Trouvé par matricule
 
                         if (!string.IsNullOrEmpty(patientIdTrouve))
                         {
@@ -366,33 +368,39 @@ namespace DicomTransferApp
             }
 
             // ═══════════════════════════════════════════════════════════════════════
-            // ÉTAPE 2 : Si aucune mammo trouvée mais PatientID récupéré,
-            //           valider l'identité avec nom ET date de naissance
+            // ÉTAPE 2 : Si aucune mammo trouvée mais PatientID récupéré
             // ═══════════════════════════════════════════════════════════════════════
             if (mammographies.Count == 0 && !string.IsNullOrEmpty(patientIdTrouve))
             {
-                Log($"Étape 2: Validation identité et recherche avec PatientID = {patientIdTrouve}");
+                Log($"Étape 2: Recherche avec PatientID = {patientIdTrouve}");
 
-                // Extraire la date de naissance du matricule
-                string dateNaissanceMatricule = ExtraireDateNaissance(patient.Matricule);
-
-                bool identiteValidee = ValiderIdentitePatient(
-                    patient.NomComplet,
-                    nomTrouve,
-                    dateNaissanceMatricule,
-                    dateNaissanceTrouvee
-                );
-
-                if (!identiteValidee)
+                // Si trouvé par OtherPatientIDs (matricule), on accepte même si le nom diffère
+                if (trouvePar_OtherPatientIDs)
                 {
-                    Log($"⚠ ATTENTION: Identité ne correspond PAS!");
-                    Log($"  → Abandon de la recherche pour éviter une erreur de patient");
-                    return null;
+                    Log($"✓ Matricule validé, recherche des mammographies sans vérification du nom");
+                }
+                else
+                {
+                    // Sinon, validation complète de l'identité
+                    string dateNaissanceMatricule = ExtraireDateNaissance(patient.Matricule);
+                    bool identiteValidee = ValiderIdentitePatient(
+                        patient.NomComplet,
+                        nomTrouve,
+                        dateNaissanceMatricule,
+                        dateNaissanceTrouvee
+                    );
+
+                    if (!identiteValidee)
+                    {
+                        Log($"⚠ ATTENTION: Identité ne correspond PAS!");
+                        Log($"  → Abandon de la recherche pour éviter une erreur de patient");
+                        return null;
+                    }
+
+                    Log($"✓ Identité validée, recherche des mammographies...");
                 }
 
-                Log($"✓ Identité validée, recherche des mammographies...");
-
-                // Continuer la recherche avec le PatientID validé
+                // Continuer la recherche avec le PatientID
                 var client2 = DicomClientFactory.Create(
                     _config.PACSSourceIP,
                     _config.PACSSourcePort,
@@ -471,6 +479,7 @@ namespace DicomTransferApp
                 int foundCountEtape3 = 0;
                 string nomPatientIdDirect = null;
                 string dateNaissancePatientIdDirect = null;
+                bool trouvePar_PatientIDDirect = false;
 
                 requestDirectPatientId.OnResponseReceived += (req, res) =>
                 {
@@ -480,6 +489,7 @@ namespace DicomTransferApp
                         {
                             nomPatientIdDirect = res.Dataset.GetSingleValueOrDefault(DicomTag.PatientName, "");
                             dateNaissancePatientIdDirect = res.Dataset.GetSingleValueOrDefault(DicomTag.PatientBirthDate, "");
+                            trouvePar_PatientIDDirect = true; // Trouvé par matricule = PatientID
 
                             if (!string.IsNullOrEmpty(nomPatientIdDirect))
                             {
@@ -490,22 +500,8 @@ namespace DicomTransferApp
                                 Dispatcher.Invoke(() => Log($"  Date naissance: {FormatDate(dateNaissancePatientIdDirect)}"));
                             }
 
-                            string dateNaissanceMatricule = ExtraireDateNaissance(patient.Matricule);
-                            bool identiteOk = ValiderIdentitePatient(
-                                patient.NomComplet,
-                                nomPatientIdDirect,
-                                dateNaissanceMatricule,
-                                dateNaissancePatientIdDirect
-                            );
-
-                            if (identiteOk)
-                            {
-                                Dispatcher.Invoke(() => Log($"✓ Identité validée"));
-                            }
-                            else
-                            {
-                                Dispatcher.Invoke(() => Log($"⚠ Identité différente"));
-                            }
+                            // Si trouvé par PatientID direct (matricule), on accepte sans vérifier le nom
+                            Dispatcher.Invoke(() => Log($"✓ Matricule validé (PatientID direct)"));
                         }
 
                         AjouterSiMammographie(res.Dataset, patient, mammographies, ref foundCountEtape3);
@@ -523,11 +519,13 @@ namespace DicomTransferApp
 
             // ═══════════════════════════════════════════════════════════════════════
             // ÉTAPE 4 : Recherche par date de naissance (dernier recours)
+            //           La date de naissance vient du matricule, donc on accepte tous les résultats
             // ═══════════════════════════════════════════════════════════════════════
             if (mammographies.Count == 0 && patientIdTrouve == null && patient.Matricule.Length >= 8)
             {
                 string dateNaissance = ExtraireDateNaissance(patient.Matricule);
                 Log($"Étape 4: Recherche par date de naissance (0010,0030) = {FormatDate(dateNaissance)}");
+                Log($"  (La date vient du matricule → on accepte tous les résultats sans vérifier le nom)");
 
                 var client4 = DicomClientFactory.Create(
                     _config.PACSSourceIP,
@@ -561,17 +559,14 @@ namespace DicomTransferApp
                         string nom = res.Dataset.GetSingleValueOrDefault(DicomTag.PatientName, "");
                         string pid = res.Dataset.GetSingleValueOrDefault(DicomTag.PatientID, "");
 
-                        // Vérifier si le nom correspond
-                        if (NomPrenomMatch(patient.NomComplet, nom))
+                        // ACCEPTER TOUS LES RÉSULTATS (date de naissance = matricule = fiable)
+                        if (!patientsCorrespondants.ContainsKey(pid))
                         {
-                            if (!patientsCorrespondants.ContainsKey(pid))
-                            {
-                                patientsCorrespondants[pid] = (nom, 0);
-                                Dispatcher.Invoke(() => Log($"  → Patient trouvé: {nom} (ID: {pid})"));
-                            }
-
-                            AjouterSiMammographie(res.Dataset, patient, mammographies, ref foundCountEtape4);
+                            patientsCorrespondants[pid] = (nom, 0);
+                            Dispatcher.Invoke(() => Log($"  → Patient trouvé: {nom} (ID: {pid})"));
                         }
+
+                        AjouterSiMammographie(res.Dataset, patient, mammographies, ref foundCountEtape4);
                     }
                 };
 
@@ -580,7 +575,7 @@ namespace DicomTransferApp
 
                 if (foundCountEtape4 > 0)
                 {
-                    Log($"✓ {foundCountEtape4} mammographie(s) trouvée(s) par date de naissance");
+                    Log($"✓ {foundCountEtape4} mammographie(s) trouvée(s) par date de naissance (matricule)");
                 }
                 else if (patientsCorrespondants.Count > 0)
                 {
@@ -617,25 +612,80 @@ namespace DicomTransferApp
             Log($"✓ Total: {mammographies.Count} mammographie(s) valide(s)");
 
             // ═══════════════════════════════════════════════════════════════════════
-            // SÉLECTION DE LA MEILLEURE MAMMOGRAPHIE
+            // SÉLECTION DE LA MEILLEURE MAMMOGRAPHIE - VERSION CORRIGÉE
             // ═══════════════════════════════════════════════════════════════════════
-            var meilleure = mammographies
-                .OrderByDescending(m => m.Priorite)
-                .ThenByDescending(m =>
-                {
-                    if (DateTime.TryParseExact(m.Date, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime dt))
-                        return dt;
-                    return DateTime.MinValue;
-                })
-                .FirstOrDefault();
-
-            if (meilleure != null)
+            if (mammographies.Count == 0)
             {
-                Log($"✓ Meilleure correspondance: {meilleure.Description} (priorité: {meilleure.Priorite})");
+                Log($"✗ Aucune mammographie disponible pour ce patient");
+                return null;
+            }
+
+            // Séparer les mammos de l'année demandée et les antérieures
+            var mammosAnneeDemandee = new List<Mammographie>();
+            var mammosAnterieures = new List<Mammographie>();
+
+            if (int.TryParse(patient.AnneeExamen, out anneeRecherchee))
+            {
+                foreach (var m in mammographies)
+                {
+                    if (string.IsNullOrEmpty(m.Date) || m.Date.Length < 4)
+                    {
+                        mammosAnterieures.Add(m);
+                        continue;
+                    }
+
+                    if (int.TryParse(m.Date.Substring(0, 4), out int anneeMammo))
+                    {
+                        if (anneeMammo == anneeRecherchee)
+                        {
+                            mammosAnneeDemandee.Add(m);
+                        }
+                        else if (anneeMammo < anneeRecherchee)
+                        {
+                            mammosAnterieures.Add(m);
+                        }
+                    }
+                }
             }
             else
             {
-                Log($"✗ Aucune mammographie disponible pour ce patient");
+                mammosAnterieures = mammographies;
+            }
+
+            Mammographie meilleure = null;
+
+            // Priorité 1 : Année demandée
+            if (mammosAnneeDemandee.Count > 0)
+            {
+                Log($"✓ {mammosAnneeDemandee.Count} mammographie(s) trouvée(s) pour l'année {patient.AnneeExamen}");
+                meilleure = mammosAnneeDemandee
+                    .OrderByDescending(m => m.Priorite)
+                    .ThenByDescending(m =>
+                    {
+                        if (DateTime.TryParseExact(m.Date, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime dt))
+                            return dt;
+                        return DateTime.MinValue;
+                    })
+                    .First();
+
+                Log($"✓ Sélection pour {patient.AnneeExamen}: {meilleure.Description} du {FormatDate(meilleure.Date)}");
+            }
+            // Priorité 2 : Plus récente antérieure
+            else if (mammosAnterieures.Count > 0)
+            {
+                Log($"✓ Aucune mammo en {patient.AnneeExamen}, {mammosAnterieures.Count} mammo(s) antérieure(s) disponible(s)");
+
+                meilleure = mammosAnterieures
+                    .OrderByDescending(m =>
+                    {
+                        if (DateTime.TryParseExact(m.Date, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime dt))
+                            return dt;
+                        return DateTime.MinValue;
+                    })
+                    .ThenByDescending(m => m.Priorite)
+                    .First();
+
+                Log($"✓ Sélection antécédent le plus récent: {meilleure.Description} du {FormatDate(meilleure.Date)}");
             }
 
             return meilleure;
@@ -921,17 +971,16 @@ namespace DicomTransferApp
                     continue;
 
                 // CAS 1: Ligne unique contenant tout (nom + matricule + années/dates)
-
                 var matriculeInLine = Regex.Match(trimmed, @"\b(\d{13})\b");
 
                 if (matriculeInLine.Success)
                 {
-                    // Extraire tout ce qui est après le matricule
-                    var resteLigne = trimmed.Substring(matriculeInLine.Index + 13).Trim();
-
                     // Extraire le nom (tout ce qui est avant le matricule)
                     var nom = trimmed.Substring(0, matriculeInLine.Index).Trim();
                     var matricule = matriculeInLine.Groups[1].Value;
+
+                    // Extraire tout ce qui est après le matricule
+                    var resteLigne = trimmed.Substring(matriculeInLine.Index + 13).Trim();
 
                     var patient = new Patient
                     {
@@ -939,54 +988,9 @@ namespace DicomTransferApp
                         Matricule = matricule
                     };
 
-                    // Chercher toutes les dates exactes (dd.mm.yyyy ou dd/mm/yyyy)
-                    var datesExactes = Regex.Matches(resteLigne, @"\b(\d{1,2})[./](\d{1,2})[./](\d{4})\b");
-
-                    if (datesExactes.Count > 0)
-                    {
-                        // On a des dates exactes
-                        foreach (Match dateMatch in datesExactes)
-                        {
-                            string jour = dateMatch.Groups[1].Value.PadLeft(2, '0');
-                            string mois = dateMatch.Groups[2].Value.PadLeft(2, '0');
-                            string annee = dateMatch.Groups[3].Value;
-
-                            patient.AnneesExamen.Add(annee);
-                            Log($"  Date exacte détectée: {jour}/{mois}/{annee} → Année: {annee}");
-                        }
-                    }
-                    else
-                    {
-                        // Pas de dates exactes, chercher les années (avec ou sans RX)
-                        // Formats: 23, 2023, 23rx, 23 rx, 2023rx, 2023 rx
-                        var anneesMatches = Regex.Matches(resteLigne, @"(\d{2}|\d{4})(?:\s*[Rr][Xx])?");
-
-                        foreach (Match match in anneesMatches)
-                        {
-                            string anneeStr = match.Groups[1].Value;
-
-                            // Vérifier que c'est bien une année (pas juste un nombre au hasard)
-                            if (anneeStr.Length == 2)
-                            {
-                                // 2 chiffres: considérer comme année 20xx
-                                int anneeNum = int.Parse(anneeStr);
-                                if (anneeNum >= 0 && anneeNum <= 99) // Années de 2000 à 2099
-                                {
-                                    string annee = "20" + anneeStr;
-                                    patient.AnneesExamen.Add(annee);
-                                }
-                            }
-                            else if (anneeStr.Length == 4)
-                            {
-                                // 4 chiffres: année complète
-                                int anneeNum = int.Parse(anneeStr);
-                                if (anneeNum >= 1900 && anneeNum <= 2100) // Années valides
-                                {
-                                    patient.AnneesExamen.Add(anneeStr);
-                                }
-                            }
-                        }
-                    }
+                    // Extraire toutes les années du reste de la ligne
+                    var anneesExtracted = ExtraireAnnees(resteLigne);
+                    patient.AnneesExamen.AddRange(anneesExtracted);
 
                     if (patient.AnneesExamen.Count > 0)
                     {
@@ -997,7 +1001,7 @@ namespace DicomTransferApp
                     continue;
                 }
 
-                // CAS 2: Format multiligne (nom sur une ligne, matricule sur la suivante, années/dates sur les suivantes)
+                // CAS 2: Format multiligne (nom sur une ligne, matricule sur la suivante, années sur les suivantes)
 
                 // Détection du matricule seul (13 chiffres sur toute la ligne)
                 var matriculeMatch = Regex.Match(trimmed, @"^\d{13}$");
@@ -1012,57 +1016,19 @@ namespace DicomTransferApp
                     continue;
                 }
 
-                // Détection d'une date exacte seule (dd.mm.yyyy ou dd/mm/yyyy)
-                var dateExacteSeule = Regex.Match(trimmed, @"^(\d{1,2})[./](\d{1,2})[./](\d{4})$");
-                if (dateExacteSeule.Success)
+                // Détection d'une ligne contenant des années/dates
+                if (patientCourant != null && hasMatricule)
                 {
-                    if (patientCourant != null && hasMatricule)
+                    var anneesExtracted = ExtraireAnnees(trimmed);
+                    if (anneesExtracted.Count > 0)
                     {
-                        string jour = dateExacteSeule.Groups[1].Value.PadLeft(2, '0');
-                        string mois = dateExacteSeule.Groups[2].Value.PadLeft(2, '0');
-                        string annee = dateExacteSeule.Groups[3].Value;
-
-                        patientCourant.AnneesExamen.Add(annee);
-                        Log($"  Date exacte ajoutée: {jour}/{mois}/{annee} → Année: {annee}");
+                        patientCourant.AnneesExamen.AddRange(anneesExtracted);
+                        Log($"  Années ajoutées: {string.Join(", ", anneesExtracted)}");
                         continue;
                     }
                 }
 
-                // Détection de l'année seule (2 ou 4 chiffres, avec ou sans RX)
-                // Formats: 23, 2023, 23rx, 23 rx, 2023rx, 2023 rx
-                var anneeSeuleMatch = Regex.Match(trimmed, @"^(\d{2}|\d{4})(?:\s*[Rr][Xx])?$", RegexOptions.IgnoreCase);
-                if (anneeSeuleMatch.Success)
-                {
-                    if (patientCourant != null && hasMatricule)
-                    {
-                        string anneeStr = anneeSeuleMatch.Groups[1].Value;
-                        string annee;
-
-                        if (anneeStr.Length == 2)
-                        {
-                            int anneeNum = int.Parse(anneeStr);
-                            if (anneeNum >= 0 && anneeNum <= 99)
-                            {
-                                annee = "20" + anneeStr;
-                                patientCourant.AnneesExamen.Add(annee);
-                                Log($"  Année ajoutée: {annee}");
-                            }
-                        }
-                        else if (anneeStr.Length == 4)
-                        {
-                            int anneeNum = int.Parse(anneeStr);
-                            if (anneeNum >= 1900 && anneeNum <= 2100)
-                            {
-                                patientCourant.AnneesExamen.Add(anneeStr);
-                                Log($"  Année ajoutée: {anneeStr}");
-                            }
-                        }
-
-                        continue;
-                    }
-                }
-
-                // Si ce n'est ni un matricule ni une année/date, vérifier si c'est la fin d'un patient multiligne
+                // Si ce n'est ni un matricule ni des années, vérifier si on doit finaliser le patient courant
                 if (patientCourant != null && hasMatricule && patientCourant.AnneesExamen.Count > 0)
                 {
                     // On a un patient complet, l'ajouter avant de commencer un nouveau
@@ -1072,7 +1038,7 @@ namespace DicomTransferApp
                     hasMatricule = false;
                 }
 
-                // Si ce n'est ni un matricule ni une année/date, c'est un nom
+                // Si ce n'est ni un matricule ni des années, c'est un nom
                 if (patientCourant == null)
                 {
                     if (!Regex.IsMatch(trimmed, @"^\d+$"))
@@ -1103,6 +1069,80 @@ namespace DicomTransferApp
             }
 
             return patients;
+        }
+
+        /// <summary>
+        /// Extrait toutes les années valides d'une chaîne de caractères.
+        /// Formats supportés: 23, 2023, 23+24, 2023+2024, 2023 2024, etc.
+        /// Ignore le texte comme "Rx", "rx", ou tout autre mot.
+        /// </summary>
+        private List<string> ExtraireAnnees(string texte)
+        {
+            var annees = new List<string>();
+
+            if (string.IsNullOrWhiteSpace(texte))
+                return annees;
+
+            // D'abord, chercher les dates exactes (dd.mm.yyyy ou dd/mm/yyyy)
+            var datesExactes = Regex.Matches(texte, @"\b(\d{1,2})[./](\d{1,2})[./](\d{4})\b");
+            if (datesExactes.Count > 0)
+            {
+                foreach (Match dateMatch in datesExactes)
+                {
+                    string annee = dateMatch.Groups[3].Value;
+                    if (!annees.Contains(annee))
+                    {
+                        annees.Add(annee);
+                        Log($"    Date exacte détectée → Année: {annee}");
+                    }
+                }
+                return annees;
+            }
+
+            // Sinon, extraire toutes les séquences de 2 ou 4 chiffres
+            // Pattern: cherche 2 ou 4 chiffres consécutifs, pas plus (pour éviter de prendre des parties de matricules)
+            var matches = Regex.Matches(texte, @"(?<!\d)(\d{2}|\d{4})(?!\d)");
+
+            foreach (Match match in matches)
+            {
+                string valeur = match.Groups[1].Value;
+
+                // Vérifier le contexte: ignorer si c'est suivi ou précédé de "rx" ou "Rx"
+                int position = match.Index;
+                string avant = position > 0 ? texte.Substring(Math.Max(0, position - 2), Math.Min(2, position)).ToLower() : "";
+                string apres = position + valeur.Length < texte.Length ?
+                    texte.Substring(position + valeur.Length, Math.Min(2, texte.Length - position - valeur.Length)).ToLower() : "";
+
+                // Si "rx" est trouvé juste avant ou après, ignorer
+                if (avant.Contains("rx") || apres.Contains("rx"))
+                    continue;
+
+                if (valeur.Length == 2)
+                {
+                    // 2 chiffres: valider que c'est une année plausible (00-99)
+                    if (int.TryParse(valeur, out int anneeNum) && anneeNum >= 0 && anneeNum <= 99)
+                    {
+                        string annee = "20" + valeur;
+                        if (!annees.Contains(annee))
+                        {
+                            annees.Add(annee);
+                        }
+                    }
+                }
+                else if (valeur.Length == 4)
+                {
+                    // 4 chiffres: valider que c'est une année plausible (1900-2100)
+                    if (int.TryParse(valeur, out int anneeNum) && anneeNum >= 1900 && anneeNum <= 2100)
+                    {
+                        if (!annees.Contains(valeur))
+                        {
+                            annees.Add(valeur);
+                        }
+                    }
+                }
+            }
+
+            return annees;
         }
     }
 }
