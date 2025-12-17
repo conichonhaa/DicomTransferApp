@@ -921,17 +921,16 @@ namespace DicomTransferApp
                     continue;
 
                 // CAS 1: Ligne unique contenant tout (nom + matricule + années/dates)
-
                 var matriculeInLine = Regex.Match(trimmed, @"\b(\d{13})\b");
 
                 if (matriculeInLine.Success)
                 {
-                    // Extraire tout ce qui est après le matricule
-                    var resteLigne = trimmed.Substring(matriculeInLine.Index + 13).Trim();
-
                     // Extraire le nom (tout ce qui est avant le matricule)
                     var nom = trimmed.Substring(0, matriculeInLine.Index).Trim();
                     var matricule = matriculeInLine.Groups[1].Value;
+
+                    // Extraire tout ce qui est après le matricule
+                    var resteLigne = trimmed.Substring(matriculeInLine.Index + 13).Trim();
 
                     var patient = new Patient
                     {
@@ -939,54 +938,9 @@ namespace DicomTransferApp
                         Matricule = matricule
                     };
 
-                    // Chercher toutes les dates exactes (dd.mm.yyyy ou dd/mm/yyyy)
-                    var datesExactes = Regex.Matches(resteLigne, @"\b(\d{1,2})[./](\d{1,2})[./](\d{4})\b");
-
-                    if (datesExactes.Count > 0)
-                    {
-                        // On a des dates exactes
-                        foreach (Match dateMatch in datesExactes)
-                        {
-                            string jour = dateMatch.Groups[1].Value.PadLeft(2, '0');
-                            string mois = dateMatch.Groups[2].Value.PadLeft(2, '0');
-                            string annee = dateMatch.Groups[3].Value;
-
-                            patient.AnneesExamen.Add(annee);
-                            Log($"  Date exacte détectée: {jour}/{mois}/{annee} → Année: {annee}");
-                        }
-                    }
-                    else
-                    {
-                        // Pas de dates exactes, chercher les années (avec ou sans RX)
-                        // Formats: 23, 2023, 23rx, 23 rx, 2023rx, 2023 rx
-                        var anneesMatches = Regex.Matches(resteLigne, @"(\d{2}|\d{4})(?:\s*[Rr][Xx])?");
-
-                        foreach (Match match in anneesMatches)
-                        {
-                            string anneeStr = match.Groups[1].Value;
-
-                            // Vérifier que c'est bien une année (pas juste un nombre au hasard)
-                            if (anneeStr.Length == 2)
-                            {
-                                // 2 chiffres: considérer comme année 20xx
-                                int anneeNum = int.Parse(anneeStr);
-                                if (anneeNum >= 0 && anneeNum <= 99) // Années de 2000 à 2099
-                                {
-                                    string annee = "20" + anneeStr;
-                                    patient.AnneesExamen.Add(annee);
-                                }
-                            }
-                            else if (anneeStr.Length == 4)
-                            {
-                                // 4 chiffres: année complète
-                                int anneeNum = int.Parse(anneeStr);
-                                if (anneeNum >= 1900 && anneeNum <= 2100) // Années valides
-                                {
-                                    patient.AnneesExamen.Add(anneeStr);
-                                }
-                            }
-                        }
-                    }
+                    // Extraire toutes les années du reste de la ligne
+                    var anneesExtracted = ExtraireAnnees(resteLigne);
+                    patient.AnneesExamen.AddRange(anneesExtracted);
 
                     if (patient.AnneesExamen.Count > 0)
                     {
@@ -997,7 +951,7 @@ namespace DicomTransferApp
                     continue;
                 }
 
-                // CAS 2: Format multiligne (nom sur une ligne, matricule sur la suivante, années/dates sur les suivantes)
+                // CAS 2: Format multiligne (nom sur une ligne, matricule sur la suivante, années sur les suivantes)
 
                 // Détection du matricule seul (13 chiffres sur toute la ligne)
                 var matriculeMatch = Regex.Match(trimmed, @"^\d{13}$");
@@ -1012,57 +966,19 @@ namespace DicomTransferApp
                     continue;
                 }
 
-                // Détection d'une date exacte seule (dd.mm.yyyy ou dd/mm/yyyy)
-                var dateExacteSeule = Regex.Match(trimmed, @"^(\d{1,2})[./](\d{1,2})[./](\d{4})$");
-                if (dateExacteSeule.Success)
+                // Détection d'une ligne contenant des années/dates
+                if (patientCourant != null && hasMatricule)
                 {
-                    if (patientCourant != null && hasMatricule)
+                    var anneesExtracted = ExtraireAnnees(trimmed);
+                    if (anneesExtracted.Count > 0)
                     {
-                        string jour = dateExacteSeule.Groups[1].Value.PadLeft(2, '0');
-                        string mois = dateExacteSeule.Groups[2].Value.PadLeft(2, '0');
-                        string annee = dateExacteSeule.Groups[3].Value;
-
-                        patientCourant.AnneesExamen.Add(annee);
-                        Log($"  Date exacte ajoutée: {jour}/{mois}/{annee} → Année: {annee}");
+                        patientCourant.AnneesExamen.AddRange(anneesExtracted);
+                        Log($"  Années ajoutées: {string.Join(", ", anneesExtracted)}");
                         continue;
                     }
                 }
 
-                // Détection de l'année seule (2 ou 4 chiffres, avec ou sans RX)
-                // Formats: 23, 2023, 23rx, 23 rx, 2023rx, 2023 rx
-                var anneeSeuleMatch = Regex.Match(trimmed, @"^(\d{2}|\d{4})(?:\s*[Rr][Xx])?$", RegexOptions.IgnoreCase);
-                if (anneeSeuleMatch.Success)
-                {
-                    if (patientCourant != null && hasMatricule)
-                    {
-                        string anneeStr = anneeSeuleMatch.Groups[1].Value;
-                        string annee;
-
-                        if (anneeStr.Length == 2)
-                        {
-                            int anneeNum = int.Parse(anneeStr);
-                            if (anneeNum >= 0 && anneeNum <= 99)
-                            {
-                                annee = "20" + anneeStr;
-                                patientCourant.AnneesExamen.Add(annee);
-                                Log($"  Année ajoutée: {annee}");
-                            }
-                        }
-                        else if (anneeStr.Length == 4)
-                        {
-                            int anneeNum = int.Parse(anneeStr);
-                            if (anneeNum >= 1900 && anneeNum <= 2100)
-                            {
-                                patientCourant.AnneesExamen.Add(anneeStr);
-                                Log($"  Année ajoutée: {anneeStr}");
-                            }
-                        }
-
-                        continue;
-                    }
-                }
-
-                // Si ce n'est ni un matricule ni une année/date, vérifier si c'est la fin d'un patient multiligne
+                // Si ce n'est ni un matricule ni des années, vérifier si on doit finaliser le patient courant
                 if (patientCourant != null && hasMatricule && patientCourant.AnneesExamen.Count > 0)
                 {
                     // On a un patient complet, l'ajouter avant de commencer un nouveau
@@ -1072,7 +988,7 @@ namespace DicomTransferApp
                     hasMatricule = false;
                 }
 
-                // Si ce n'est ni un matricule ni une année/date, c'est un nom
+                // Si ce n'est ni un matricule ni des années, c'est un nom
                 if (patientCourant == null)
                 {
                     if (!Regex.IsMatch(trimmed, @"^\d+$"))
@@ -1103,6 +1019,80 @@ namespace DicomTransferApp
             }
 
             return patients;
+        }
+
+        /// <summary>
+        /// Extrait toutes les années valides d'une chaîne de caractères.
+        /// Formats supportés: 23, 2023, 23+24, 2023+2024, 2023 2024, etc.
+        /// Ignore le texte comme "Rx", "rx", ou tout autre mot.
+        /// </summary>
+        private List<string> ExtraireAnnees(string texte)
+        {
+            var annees = new List<string>();
+
+            if (string.IsNullOrWhiteSpace(texte))
+                return annees;
+
+            // D'abord, chercher les dates exactes (dd.mm.yyyy ou dd/mm/yyyy)
+            var datesExactes = Regex.Matches(texte, @"\b(\d{1,2})[./](\d{1,2})[./](\d{4})\b");
+            if (datesExactes.Count > 0)
+            {
+                foreach (Match dateMatch in datesExactes)
+                {
+                    string annee = dateMatch.Groups[3].Value;
+                    if (!annees.Contains(annee))
+                    {
+                        annees.Add(annee);
+                        Log($"    Date exacte détectée → Année: {annee}");
+                    }
+                }
+                return annees;
+            }
+
+            // Sinon, extraire toutes les séquences de 2 ou 4 chiffres
+            // Pattern: cherche 2 ou 4 chiffres consécutifs, pas plus (pour éviter de prendre des parties de matricules)
+            var matches = Regex.Matches(texte, @"(?<!\d)(\d{2}|\d{4})(?!\d)");
+
+            foreach (Match match in matches)
+            {
+                string valeur = match.Groups[1].Value;
+
+                // Vérifier le contexte: ignorer si c'est suivi ou précédé de "rx" ou "Rx"
+                int position = match.Index;
+                string avant = position > 0 ? texte.Substring(Math.Max(0, position - 2), Math.Min(2, position)).ToLower() : "";
+                string apres = position + valeur.Length < texte.Length ?
+                    texte.Substring(position + valeur.Length, Math.Min(2, texte.Length - position - valeur.Length)).ToLower() : "";
+
+                // Si "rx" est trouvé juste avant ou après, ignorer
+                if (avant.Contains("rx") || apres.Contains("rx"))
+                    continue;
+
+                if (valeur.Length == 2)
+                {
+                    // 2 chiffres: valider que c'est une année plausible (00-99)
+                    if (int.TryParse(valeur, out int anneeNum) && anneeNum >= 0 && anneeNum <= 99)
+                    {
+                        string annee = "20" + valeur;
+                        if (!annees.Contains(annee))
+                        {
+                            annees.Add(annee);
+                        }
+                    }
+                }
+                else if (valeur.Length == 4)
+                {
+                    // 4 chiffres: valider que c'est une année plausible (1900-2100)
+                    if (int.TryParse(valeur, out int anneeNum) && anneeNum >= 1900 && anneeNum <= 2100)
+                    {
+                        if (!annees.Contains(valeur))
+                        {
+                            annees.Add(valeur);
+                        }
+                    }
+                }
+            }
+
+            return annees;
         }
     }
 }
