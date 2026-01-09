@@ -307,7 +307,6 @@ namespace DicomTransferApp
             string patientIdTrouve = null;
             string nomTrouve = null;
             string dateNaissanceTrouvee = null;
-            bool trouvePar_OtherPatientIDs = false; // Nouveau flag
 
             // ═══════════════════════════════════════════════════════════════════════
             // ÉTAPE 1 : Recherche directe avec OtherPatientIDs (0010,1000)
@@ -339,7 +338,6 @@ namespace DicomTransferApp
                         patientIdTrouve = res.Dataset.GetSingleValueOrDefault(DicomTag.PatientID, "");
                         nomTrouve = res.Dataset.GetSingleValueOrDefault(DicomTag.PatientName, "");
                         dateNaissanceTrouvee = res.Dataset.GetSingleValueOrDefault(DicomTag.PatientBirthDate, "");
-                        trouvePar_OtherPatientIDs = true; // Trouvé par matricule
 
                         if (!string.IsNullOrEmpty(patientIdTrouve))
                         {
@@ -374,31 +372,23 @@ namespace DicomTransferApp
             {
                 Log($"Étape 2: Recherche avec PatientID = {patientIdTrouve}");
 
-                // Si trouvé par OtherPatientIDs (matricule), on accepte même si le nom diffère
-                if (trouvePar_OtherPatientIDs)
-                {
-                    Log($"✓ Matricule validé, recherche des mammographies sans vérification du nom");
-                }
-                else
-                {
-                    // Sinon, validation complète de l'identité
-                    string dateNaissanceMatricule = ExtraireDateNaissance(patient.Matricule);
-                    bool identiteValidee = ValiderIdentitePatient(
-                        patient.NomComplet,
-                        nomTrouve,
-                        dateNaissanceMatricule,
-                        dateNaissanceTrouvee
-                    );
+                // VALIDATION SYSTÉMATIQUE de l'identité (sécurité patient)
+                string dateNaissanceMatricule = ExtraireDateNaissance(patient.Matricule);
+                bool identiteValidee = ValiderIdentitePatient(
+                    patient.NomComplet,
+                    nomTrouve,
+                    dateNaissanceMatricule,
+                    dateNaissanceTrouvee
+                );
 
-                    if (!identiteValidee)
-                    {
-                        Log($"⚠ ATTENTION: Identité ne correspond PAS!");
-                        Log($"  → Abandon de la recherche pour éviter une erreur de patient");
-                        return null;
-                    }
-
-                    Log($"✓ Identité validée, recherche des mammographies...");
+                if (!identiteValidee)
+                {
+                    Log($"⚠ ATTENTION: Identité ne correspond PAS!");
+                    Log($"  → Abandon de la recherche pour éviter une erreur de patient");
+                    return null;
                 }
+
+                Log($"✓ Identité validée, recherche des mammographies...")
 
                 // Continuer la recherche avec le PatientID
                 var client2 = DicomClientFactory.Create(
@@ -479,17 +469,17 @@ namespace DicomTransferApp
                 int foundCountEtape3 = 0;
                 string nomPatientIdDirect = null;
                 string dateNaissancePatientIdDirect = null;
-                bool trouvePar_PatientIDDirect = false;
+                bool identiteValideeEtape3 = false;
 
                 requestDirectPatientId.OnResponseReceived += (req, res) =>
                 {
                     if (res.HasDataset && res.Status == DicomStatus.Pending)
                     {
+                        // Validation de l'identité à la première réponse
                         if (nomPatientIdDirect == null)
                         {
                             nomPatientIdDirect = res.Dataset.GetSingleValueOrDefault(DicomTag.PatientName, "");
                             dateNaissancePatientIdDirect = res.Dataset.GetSingleValueOrDefault(DicomTag.PatientBirthDate, "");
-                            trouvePar_PatientIDDirect = true; // Trouvé par matricule = PatientID
 
                             if (!string.IsNullOrEmpty(nomPatientIdDirect))
                             {
@@ -500,11 +490,31 @@ namespace DicomTransferApp
                                 Dispatcher.Invoke(() => Log($"  Date naissance: {FormatDate(dateNaissancePatientIdDirect)}"));
                             }
 
-                            // Si trouvé par PatientID direct (matricule), on accepte sans vérifier le nom
-                            Dispatcher.Invoke(() => Log($"✓ Matricule validé (PatientID direct)"));
+                            // VALIDATION SYSTÉMATIQUE de l'identité (sécurité patient)
+                            string dateNaissanceMatricule = ExtraireDateNaissance(patient.Matricule);
+                            identiteValideeEtape3 = ValiderIdentitePatient(
+                                patient.NomComplet,
+                                nomPatientIdDirect,
+                                dateNaissanceMatricule,
+                                dateNaissancePatientIdDirect
+                            );
+
+                            if (!identiteValideeEtape3)
+                            {
+                                Dispatcher.Invoke(() => Log($"⚠ ATTENTION: Identité ne correspond PAS (PatientID direct)"));
+                                Dispatcher.Invoke(() => Log($"  → Résultats ignorés pour éviter une erreur de patient"));
+                            }
+                            else
+                            {
+                                Dispatcher.Invoke(() => Log($"✓ Identité validée (PatientID direct)"));
+                            }
                         }
 
-                        AjouterSiMammographie(res.Dataset, patient, mammographies, ref foundCountEtape3);
+                        // N'ajouter que si l'identité est validée
+                        if (identiteValideeEtape3)
+                        {
+                            AjouterSiMammographie(res.Dataset, patient, mammographies, ref foundCountEtape3);
+                        }
                     }
                 };
 
@@ -519,13 +529,13 @@ namespace DicomTransferApp
 
             // ═══════════════════════════════════════════════════════════════════════
             // ÉTAPE 4 : Recherche par date de naissance (dernier recours)
-            //           La date de naissance vient du matricule, donc on accepte tous les résultats
+            //           AVEC VALIDATION du nom pour éviter les erreurs de patient
             // ═══════════════════════════════════════════════════════════════════════
             if (mammographies.Count == 0 && patientIdTrouve == null && patient.Matricule.Length >= 8)
             {
                 string dateNaissance = ExtraireDateNaissance(patient.Matricule);
                 Log($"Étape 4: Recherche par date de naissance (0010,0030) = {FormatDate(dateNaissance)}");
-                Log($"  (La date vient du matricule → on accepte tous les résultats sans vérifier le nom)");
+                Log($"  ⚠ Recherche large → validation du nom OBLIGATOIRE");
 
                 var client4 = DicomClientFactory.Create(
                     _config.PACSSourceIP,
@@ -550,7 +560,7 @@ namespace DicomTransferApp
                 };
 
                 int foundCountEtape4 = 0;
-                var patientsCorrespondants = new Dictionary<string, (string nom, int count)>();
+                var patientsValidation = new Dictionary<string, bool>(); // PatientID -> Validé ou non
 
                 requestByBirthDate.OnResponseReceived += (req, res) =>
                 {
@@ -559,14 +569,29 @@ namespace DicomTransferApp
                         string nom = res.Dataset.GetSingleValueOrDefault(DicomTag.PatientName, "");
                         string pid = res.Dataset.GetSingleValueOrDefault(DicomTag.PatientID, "");
 
-                        // ACCEPTER TOUS LES RÉSULTATS (date de naissance = matricule = fiable)
-                        if (!patientsCorrespondants.ContainsKey(pid))
+                        // Valider l'identité de chaque patient trouvé
+                        if (!patientsValidation.ContainsKey(pid))
                         {
-                            patientsCorrespondants[pid] = (nom, 0);
-                            Dispatcher.Invoke(() => Log($"  → Patient trouvé: {nom} (ID: {pid})"));
+                            // VALIDATION SYSTÉMATIQUE par le nom (sécurité patient)
+                            bool nomValide = NomPrenomMatch(patient.NomComplet, nom);
+
+                            patientsValidation[pid] = nomValide;
+
+                            if (nomValide)
+                            {
+                                Dispatcher.Invoke(() => Log($"  ✓ Patient validé: {nom} (ID: {pid})"));
+                            }
+                            else
+                            {
+                                Dispatcher.Invoke(() => Log($"  ✗ Patient rejeté (nom ne correspond pas): {nom} (ID: {pid})"));
+                            }
                         }
 
-                        AjouterSiMammographie(res.Dataset, patient, mammographies, ref foundCountEtape4);
+                        // N'ajouter QUE si le patient est validé
+                        if (patientsValidation[pid])
+                        {
+                            AjouterSiMammographie(res.Dataset, patient, mammographies, ref foundCountEtape4);
+                        }
                     }
                 };
 
@@ -575,11 +600,16 @@ namespace DicomTransferApp
 
                 if (foundCountEtape4 > 0)
                 {
-                    Log($"✓ {foundCountEtape4} mammographie(s) trouvée(s) par date de naissance (matricule)");
+                    Log($"✓ {foundCountEtape4} mammographie(s) trouvée(s) par date de naissance (après validation du nom)");
                 }
-                else if (patientsCorrespondants.Count > 0)
+                else if (patientsValidation.Count > 0)
                 {
-                    Log($"ℹ Patient(s) trouvé(s) par date de naissance mais sans mammographie");
+                    int rejetes = patientsValidation.Count(kv => !kv.Value);
+                    if (rejetes > 0)
+                    {
+                        Log($"⚠ {rejetes} patient(s) avec même date de naissance rejeté(s) (nom ne correspond pas)");
+                    }
+                    Log($"ℹ Aucune mammographie trouvée pour le patient recherché");
                 }
             }
 
