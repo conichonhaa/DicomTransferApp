@@ -157,8 +157,9 @@ namespace DicomTransferApp
                                 Log($"Mammographie trouvée: {mammographie.Description}");
                                 Log($"Study UID: {mammographie.StudyUID}");
 
-                                // Vérifier si c'est l'année demandée ou un antécédent
+                                // Vérifier si c'est l'année demandée, un antécédent ou postérieur
                                 bool estAntecedent = false;
+                                string typeDifference = null;
                                 if (!string.IsNullOrEmpty(mammographie.Date) && mammographie.Date.Length >= 4)
                                 {
                                     string anneeExamen = mammographie.Date.Substring(0, 4);
@@ -166,7 +167,19 @@ namespace DicomTransferApp
 
                                     if (estAntecedent)
                                     {
-                                        Log($"⚠ ATTENTION: Mammographie antérieure ({anneeExamen}) - pas de mammo en {annee}");
+                                        if (int.TryParse(anneeExamen, out int anneeMammo) && int.TryParse(annee, out int anneeDemandee))
+                                        {
+                                            if (anneeMammo < anneeDemandee)
+                                            {
+                                                typeDifference = "ANTERIEURE";
+                                                Log($"⚠ ATTENTION: Mammographie antérieure ({anneeExamen}) - pas de mammo en {annee}");
+                                            }
+                                            else if (anneeMammo > anneeDemandee)
+                                            {
+                                                typeDifference = "POSTERIEURE";
+                                                Log($"ℹ INFO: Mammographie postérieure ({anneeExamen}) - pas de mammo en {annee}");
+                                            }
+                                        }
                                     }
                                 }
 
@@ -180,6 +193,7 @@ namespace DicomTransferApp
                                     DateExamen = FormatDate(mammographie.Date),
                                     AnneeRecherchee = annee,
                                     EstAntecedent = estAntecedent,
+                                    TypeDifference = typeDifference,
                                     Statut = succes ? "✓ Envoyé" : "✗ Échec"
                                 });
                             }
@@ -194,6 +208,7 @@ namespace DicomTransferApp
                                     DateExamen = "-",
                                     AnneeRecherchee = annee,
                                     EstAntecedent = false,
+                                    TypeDifference = null,
                                     Statut = "Aucune"
                                 });
                             }
@@ -209,6 +224,7 @@ namespace DicomTransferApp
                                 DateExamen = "-",
                                 AnneeRecherchee = annee,
                                 EstAntecedent = false,
+                                TypeDifference = null,
                                 Statut = "Erreur"
                             });
                         }
@@ -260,9 +276,16 @@ namespace DicomTransferApp
                 sb.AppendLine($"Examen : {resultat.DescriptionMammographie}");
                 sb.AppendLine($"Date examen envoyé : {resultat.DateExamen}");
 
-                if (resultat.EstAntecedent)
+                if (!string.IsNullOrEmpty(resultat.TypeDifference))
                 {
-                    sb.AppendLine($"⚠ ATTENTION : Mammographie antérieure (pas de mammo en {resultat.AnneeRecherchee})");
+                    if (resultat.TypeDifference == "ANTERIEURE")
+                    {
+                        sb.AppendLine($"⚠ ATTENTION : Mammographie antérieure (pas de mammo en {resultat.AnneeRecherchee})");
+                    }
+                    else if (resultat.TypeDifference == "POSTERIEURE")
+                    {
+                        sb.AppendLine($"ℹ INFO : Mammographie postérieure (pas de mammo en {resultat.AnneeRecherchee})");
+                    }
                 }
 
                 //sb.AppendLine($"Statut : {resultat.Statut}");
@@ -614,35 +637,33 @@ namespace DicomTransferApp
             }
 
             // ═══════════════════════════════════════════════════════════════════════
-            // FILTRAGE DES EXAMENS FUTURS
+            // FILTRAGE DES EXAMENS FUTURS (après aujourd'hui)
             // ═══════════════════════════════════════════════════════════════════════
-            if (int.TryParse(patient.AnneeExamen, out int anneeRecherchee))
+            var aujourdhui = DateTime.Today;
+            var mammographiesValides = mammographies.Where(m =>
             {
-                var mammographiesValides = mammographies.Where(m =>
-                {
-                    if (string.IsNullOrEmpty(m.Date) || m.Date.Length < 4)
-                        return true;
-
-                    if (int.TryParse(m.Date.Substring(0, 4), out int anneeMammo))
-                    {
-                        return anneeMammo <= anneeRecherchee;
-                    }
+                if (string.IsNullOrEmpty(m.Date) || m.Date.Length < 8)
                     return true;
-                }).ToList();
 
-                int mammographiesFutures = mammographies.Count - mammographiesValides.Count;
-                if (mammographiesFutures > 0)
+                if (DateTime.TryParseExact(m.Date, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime dateMammo))
                 {
-                    Log($"⚠ {mammographiesFutures} mammographie(s) future(s) écartée(s)");
+                    return dateMammo <= aujourdhui;
                 }
+                return true;
+            }).ToList();
 
-                mammographies = mammographiesValides;
+            int mammographiesFutures = mammographies.Count - mammographiesValides.Count;
+            if (mammographiesFutures > 0)
+            {
+                Log($"⚠ {mammographiesFutures} mammographie(s) dans le futur écartée(s)");
             }
+
+            mammographies = mammographiesValides;
 
             Log($"✓ Total: {mammographies.Count} mammographie(s) valide(s)");
 
             // ═══════════════════════════════════════════════════════════════════════
-            // SÉLECTION DE LA MEILLEURE MAMMOGRAPHIE - VERSION CORRIGÉE
+            // SÉLECTION DE LA MEILLEURE MAMMOGRAPHIE
             // ═══════════════════════════════════════════════════════════════════════
             if (mammographies.Count == 0)
             {
@@ -650,72 +671,75 @@ namespace DicomTransferApp
                 return null;
             }
 
-            // Séparer les mammos de l'année demandée et les antérieures
-            var mammosAnneeDemandee = new List<Mammographie>();
-            var mammosAnterieures = new List<Mammographie>();
+            Mammographie meilleure = null;
 
-            if (int.TryParse(patient.AnneeExamen, out anneeRecherchee))
+            // Étape 1 : Chercher dans l'année demandée
+            if (int.TryParse(patient.AnneeExamen, out int anneeRecherchee))
             {
-                foreach (var m in mammographies)
+                var mammosAnneeDemandee = mammographies.Where(m =>
                 {
                     if (string.IsNullOrEmpty(m.Date) || m.Date.Length < 4)
-                    {
-                        mammosAnterieures.Add(m);
-                        continue;
-                    }
+                        return false;
 
                     if (int.TryParse(m.Date.Substring(0, 4), out int anneeMammo))
                     {
-                        if (anneeMammo == anneeRecherchee)
-                        {
-                            mammosAnneeDemandee.Add(m);
-                        }
-                        else if (anneeMammo < anneeRecherchee)
-                        {
-                            mammosAnterieures.Add(m);
-                        }
+                        return anneeMammo == anneeRecherchee;
                     }
+                    return false;
+                }).ToList();
+
+                if (mammosAnneeDemandee.Count > 0)
+                {
+                    Log($"✓ {mammosAnneeDemandee.Count} mammographie(s) trouvée(s) pour l'année {patient.AnneeExamen}");
+                    meilleure = mammosAnneeDemandee
+                        .OrderByDescending(m => m.Priorite)
+                        .ThenByDescending(m =>
+                        {
+                            if (DateTime.TryParseExact(m.Date, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime dt))
+                                return dt;
+                            return DateTime.MinValue;
+                        })
+                        .First();
+
+                    Log($"✓ Sélection pour {patient.AnneeExamen}: {meilleure.Description} du {FormatDate(meilleure.Date)}");
+                    return meilleure;
                 }
             }
-            else
+
+            // Étape 2 : Si aucune mammo de l'année demandée, prendre la plus récente disponible
+            Log($"✓ Aucune mammo en {patient.AnneeExamen}, sélection de la plus récente disponible");
+
+            meilleure = mammographies
+                .OrderByDescending(m =>
+                {
+                    if (DateTime.TryParseExact(m.Date, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime dt))
+                        return dt;
+                    return DateTime.MinValue;
+                })
+                .ThenByDescending(m => m.Priorite)
+                .First();
+
+            string anneeMeilleure = "";
+            if (!string.IsNullOrEmpty(meilleure.Date) && meilleure.Date.Length >= 4)
             {
-                mammosAnterieures = mammographies;
+                anneeMeilleure = meilleure.Date.Substring(0, 4);
             }
 
-            Mammographie meilleure = null;
+            Log($"✓ Sélection de la plus récente: {meilleure.Description} du {FormatDate(meilleure.Date)}");
 
-            // Priorité 1 : Année demandée
-            if (mammosAnneeDemandee.Count > 0)
+            if (!string.IsNullOrEmpty(anneeMeilleure) && int.TryParse(patient.AnneeExamen, out int annee))
             {
-                Log($"✓ {mammosAnneeDemandee.Count} mammographie(s) trouvée(s) pour l'année {patient.AnneeExamen}");
-                meilleure = mammosAnneeDemandee
-                    .OrderByDescending(m => m.Priorite)
-                    .ThenByDescending(m =>
+                if (int.TryParse(anneeMeilleure, out int anneeTrouvee))
+                {
+                    if (anneeTrouvee < annee)
                     {
-                        if (DateTime.TryParseExact(m.Date, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime dt))
-                            return dt;
-                        return DateTime.MinValue;
-                    })
-                    .First();
-
-                Log($"✓ Sélection pour {patient.AnneeExamen}: {meilleure.Description} du {FormatDate(meilleure.Date)}");
-            }
-            // Priorité 2 : Plus récente antérieure
-            else if (mammosAnterieures.Count > 0)
-            {
-                Log($"✓ Aucune mammo en {patient.AnneeExamen}, {mammosAnterieures.Count} mammo(s) antérieure(s) disponible(s)");
-
-                meilleure = mammosAnterieures
-                    .OrderByDescending(m =>
+                        Log($"  ⚠ Mammographie antérieure à {patient.AnneeExamen}");
+                    }
+                    else if (anneeTrouvee > annee)
                     {
-                        if (DateTime.TryParseExact(m.Date, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime dt))
-                            return dt;
-                        return DateTime.MinValue;
-                    })
-                    .ThenByDescending(m => m.Priorite)
-                    .First();
-
-                Log($"✓ Sélection antécédent le plus récent: {meilleure.Description} du {FormatDate(meilleure.Date)}");
+                        Log($"  ℹ Mammographie postérieure à {patient.AnneeExamen} (pas de mammo en {patient.AnneeExamen})");
+                    }
+                }
             }
 
             return meilleure;

@@ -8,6 +8,7 @@
         public string DateExamen { get; set; }
         public string AnneeRecherchee { get; set; }
         public bool EstAntecedent { get; set; }
+        public string TypeDifference { get; set; } // null = année exacte, "ANTERIEURE" ou "POSTERIEURE"
         public string Statut { get; set; }
     }
 }
