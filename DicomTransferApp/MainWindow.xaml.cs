@@ -637,9 +637,13 @@ namespace DicomTransferApp
             }
 
             // ═══════════════════════════════════════════════════════════════════════
-            // FILTRAGE DES EXAMENS FUTURS (après aujourd'hui)
+            // FILTRAGE DES EXAMENS FUTURS ET TROP RÉCENTS
+            // - Examens dans le futur (après aujourd'hui)
+            // - Examens de moins de 1 mois (probablement des erreurs de saisie)
             // ═══════════════════════════════════════════════════════════════════════
             var aujourdhui = DateTime.Today;
+            var dateMinimale = aujourdhui.AddMonths(-1); // Il y a 1 mois
+
             var mammographiesValides = mammographies.Where(m =>
             {
                 if (string.IsNullOrEmpty(m.Date) || m.Date.Length < 8)
@@ -647,15 +651,43 @@ namespace DicomTransferApp
 
                 if (DateTime.TryParseExact(m.Date, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime dateMammo))
                 {
-                    return dateMammo <= aujourdhui;
+                    // Éliminer si dans le futur
+                    if (dateMammo > aujourdhui)
+                        return false;
+
+                    // Éliminer si moins de 1 mois
+                    if (dateMammo > dateMinimale)
+                        return false;
+
+                    return true;
                 }
                 return true;
             }).ToList();
 
-            int mammographiesFutures = mammographies.Count - mammographiesValides.Count;
+            int mammographiesFutures = 0;
+            int mammographiesTropRecentes = 0;
+
+            foreach (var m in mammographies.Except(mammographiesValides))
+            {
+                if (!string.IsNullOrEmpty(m.Date) && m.Date.Length >= 8)
+                {
+                    if (DateTime.TryParseExact(m.Date, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime dateMammo))
+                    {
+                        if (dateMammo > aujourdhui)
+                            mammographiesFutures++;
+                        else if (dateMammo > dateMinimale)
+                            mammographiesTropRecentes++;
+                    }
+                }
+            }
+
             if (mammographiesFutures > 0)
             {
                 Log($"⚠ {mammographiesFutures} mammographie(s) dans le futur écartée(s)");
+            }
+            if (mammographiesTropRecentes > 0)
+            {
+                Log($"⚠ {mammographiesTropRecentes} mammographie(s) trop récente(s) écartée(s) (< 1 mois)");
             }
 
             mammographies = mammographiesValides;
