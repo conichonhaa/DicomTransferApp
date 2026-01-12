@@ -411,7 +411,7 @@ namespace DicomTransferApp
                     return null;
                 }
 
-                Log($"✓ Identité validée, recherche des mammographies...")
+                Log($"✓ Identité validée, recherche des mammographies...");
 
                 // Continuer la recherche avec le PatientID
                 var client2 = DicomClientFactory.Create(
