@@ -1,0 +1,3 @@
+# Dépendances pour le script de listing des mammographies de dépistage
+pynetdicom>=2.0.0
+pydicom>=2.3.0
