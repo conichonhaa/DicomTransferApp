@@ -134,6 +134,7 @@ namespace MammoListeApp
 
                 request.OnResponseReceived += (_, res) =>
                 {
+                    Log($"  [RAW] HasDataset={res.HasDataset} | Status={res.Status}");
                     if (!res.HasDataset || res.Status != DicomStatus.Pending) return;
 
                     // ── Debug : afficher ce que le PACS renvoie ────────────────
