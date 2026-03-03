@@ -1,154 +1,183 @@
-﻿<Window x:Class="DicomTransferApp.MainWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:local="clr-namespace:DicomTransferApp"
-        Title="Transfert DICOM" 
-        Height="700" 
-        Width="1050"
-        Icon="DicomTransferApp.ico">
-    <Window.Resources>
-        <local:TextToVisibilityConverter x:Key="TextToVisibilityConverter"/>
-    </Window.Resources>
-    <Grid Margin="10">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="200"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="150"/>
-        </Grid.RowDefinitions>
+<Window x:Class="DicomTransferApp.MainWindow"
+       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+       xmlns:local="clr-namespace:DicomTransferApp"
+       Title="Transfert DICOM"
+       Height="700"
+       Width="1050"
+       Icon="DicomTransferApp.ico">
+   <Window.Resources>
+       <local:TextToVisibilityConverter x:Key="TextToVisibilityConverter"/>
+   </Window.Resources>
+   <Grid Margin="10">
+       <Grid.RowDefinitions>
+           <RowDefinition Height="Auto"/>
+           <RowDefinition Height="200"/>
+           <RowDefinition Height="Auto"/>
+           <RowDefinition Height="Auto"/>
+           <RowDefinition Height="*"/>
+           <RowDefinition Height="Auto"/>
+           <RowDefinition Height="150"/>
+       </Grid.RowDefinitions>
 
-        <!-- Titre -->
-        <TextBlock 
-            Text="Transfert de Mammographies DICOM" 
-            FontSize="20" 
-            HorizontalAlignment="Center" 
-            Grid.Row="0" 
-            Margin="0,0,0,10"/>
+       <!-- Titre -->
+       <TextBlock
+           Text="Transfert de Mammographies DICOM"
+           FontSize="20"
+           HorizontalAlignment="Center"
+           Grid.Row="0"
+           Margin="0,0,0,10"/>
 
-        <!-- Zone de saisie avec placeholder -->
-        <Grid Grid.Row="1">
-            <TextBox 
-                x:Name="txtListePatients"
-                TextWrapping="Wrap" 
-                AcceptsReturn="True"
-                VerticalScrollBarVisibility="Auto"
-                HorizontalScrollBarVisibility="Auto"
-                SpellCheck.IsEnabled="True"
-                Language="fr-FR"
-                Padding="5"/>
+       <!-- Zone de saisie avec placeholder -->
+       <Grid Grid.Row="1">
+           <TextBox
+               x:Name="txtListePatients"
+               TextWrapping="Wrap"
+               AcceptsReturn="True"
+               VerticalScrollBarVisibility="Auto"
+               HorizontalScrollBarVisibility="Auto"
+               SpellCheck.IsEnabled="True"
+               Language="fr-FR"
+               Padding="5"/>
 
-            <TextBlock 
-                Text="Collez ici la liste des patients (multiligne ou ligne unique)..." 
-                Foreground="Gray"
-                IsHitTestVisible="False"
-                VerticalAlignment="Top"
-                Margin="8,5,0,0">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock">
-                        <Setter Property="Visibility" Value="Collapsed"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding ElementName=txtListePatients, Path=Text}" Value="">
-                                <Setter Property="Visibility" Value="Visible"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </TextBlock.Style>
-            </TextBlock>
-        </Grid>
+           <TextBlock
+               Text="Collez ici la liste des patients (multiligne ou ligne unique)..."
+               Foreground="Gray"
+               IsHitTestVisible="False"
+               VerticalAlignment="Top"
+               Margin="8,5,0,0">
+               <TextBlock.Style>
+                   <Style TargetType="TextBlock">
+                       <Setter Property="Visibility" Value="Collapsed"/>
+                       <Style.Triggers>
+                           <DataTrigger Binding="{Binding ElementName=txtListePatients, Path=Text}" Value="">
+                               <Setter Property="Visibility" Value="Visible"/>
+                           </DataTrigger>
+                       </Style.Triggers>
+                   </Style>
+               </TextBlock.Style>
+           </TextBlock>
+       </Grid>
 
-        <!-- Boutons -->
-        <StackPanel 
-            Orientation="Horizontal" 
-            HorizontalAlignment="Left" 
-            Grid.Row="2" 
-            Margin="0,10">
-            <Button 
-                x:Name="btnConfigPACS"
-                Content="Configuration PACS"
-                Margin="0,0,10,0"
-                Padding="10,5"/>
-            <Button 
-                x:Name="btnTransfert"
-                Content="Transférer Mammographies"
-                Margin="0,0,10,0"
-                Padding="10,5"/>
-            <Button 
-                x:Name="btnCopierResultats"
-                Content="📋 Copier les résultats"
-                Padding="10,5"
-                Background="#E8F5E9"/>
-        </StackPanel>
+       <!-- Sélection de la salle -->
+       <StackPanel
+           Orientation="Horizontal"
+           Grid.Row="2"
+           Margin="0,8,0,4"
+           VerticalAlignment="Center">
+           <TextBlock
+               Text="Salle :"
+               FontWeight="Bold"
+               VerticalAlignment="Center"
+               Margin="0,0,8,0"/>
+           <ComboBox
+               x:Name="cboSalle"
+               Width="160"
+               VerticalAlignment="Center">
+               <ComboBoxItem Content="ZK" Tag="ZKPRISTINA" IsSelected="True"/>
+               <ComboBoxItem Content="HK" Tag="HKPRISTINA"/>
+               <ComboBoxItem Content="Cloche d'Or" Tag="MCCO_MG1"/>
+           </ComboBox>
+       </StackPanel>
 
-        <!-- Tableau des résultats -->
-        <DataGrid 
-            x:Name="listViewResultats"
-            Grid.Row="3"
-            AutoGenerateColumns="False"
-            IsReadOnly="True"
-            Margin="0,0,0,10">
-            <DataGrid.Columns>
-                <DataGridTextColumn Header="Patient" Binding="{Binding NomComplet}" Width="150"/>
-                <DataGridTextColumn Header="Matricule" Binding="{Binding Matricule}" Width="110">
-                    <DataGridTextColumn.ElementStyle>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="FontFamily" Value="Consolas"/>
-                        </Style>
-                    </DataGridTextColumn.ElementStyle>
-                </DataGridTextColumn>
-                <DataGridTextColumn Header="Mammographie" Binding="{Binding DescriptionMammographie}" Width="*"/>
+       <!-- Boutons -->
+       <StackPanel
+           Orientation="Horizontal"
+           HorizontalAlignment="Left"
+           Grid.Row="3"
+           Margin="0,4,0,10">
+           <Button
+               x:Name="btnConfigPACS"
+               Content="Configuration PACS"
+               Margin="0,0,10,0"
+               Padding="10,5"/>
+           <Button
+               x:Name="btnTransfert"
+               Content="Transférer Mammographies"
+               Margin="0,0,10,0"
+               Padding="10,5"/>
+           <Button
+               x:Name="btnCopierResultats"
+               Content="📋 Copier les résultats"
+               Margin="0,0,10,0"
+               Padding="10,5"
+               Background="#E8F5E9"/>
+           <Button
+               x:Name="btnExportExcel"
+               Content="📊 Exporter Excel"
+               Padding="10,5"
+               Background="#E3F2FD"/>
+       </StackPanel>
 
-                <!-- Année demandée -->
-                <DataGridTextColumn Header="Année demandée" Binding="{Binding AnneeRecherchee}" Width="110">
-                    <DataGridTextColumn.ElementStyle>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="HorizontalAlignment" Value="Center"/>
-                        </Style>
-                    </DataGridTextColumn.ElementStyle>
-                </DataGridTextColumn>
+       <!-- Tableau des résultats -->
+       <DataGrid
+           x:Name="listViewResultats"
+           Grid.Row="4"
+           AutoGenerateColumns="False"
+           IsReadOnly="True"
+           Margin="0,0,0,10">
+           <DataGrid.Columns>
+               <DataGridTextColumn Header="Salle" Binding="{Binding Salle}" Width="90"/>
+               <DataGridTextColumn Header="Patient" Binding="{Binding NomComplet}" Width="150"/>
+               <DataGridTextColumn Header="Matricule" Binding="{Binding Matricule}" Width="110">
+                   <DataGridTextColumn.ElementStyle>
+                       <Style TargetType="TextBlock">
+                           <Setter Property="FontFamily" Value="Consolas"/>
+                       </Style>
+                   </DataGridTextColumn.ElementStyle>
+               </DataGridTextColumn>
+               <DataGridTextColumn Header="Mammographie" Binding="{Binding DescriptionMammographie}" Width="*"/>
 
-                <!-- Date examen avec style conditionnel -->
-                <DataGridTemplateColumn Header="Date Examen" Width="100">
-                    <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate>
-                            <TextBlock Text="{Binding DateExamen}" HorizontalAlignment="Center">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding EstAntecedent}" Value="True">
-                                                <Setter Property="Foreground" Value="Red"/>
-                                                <Setter Property="FontWeight" Value="Bold"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                </DataGridTemplateColumn>
+               <!-- Année demandée -->
+               <DataGridTextColumn Header="Année demandée" Binding="{Binding AnneeRecherchee}" Width="110">
+                   <DataGridTextColumn.ElementStyle>
+                       <Style TargetType="TextBlock">
+                           <Setter Property="HorizontalAlignment" Value="Center"/>
+                       </Style>
+                   </DataGridTextColumn.ElementStyle>
+               </DataGridTextColumn>
 
-                <DataGridTextColumn Header="Statut" Binding="{Binding Statut}" Width="100"/>
-            </DataGrid.Columns>
-        </DataGrid>
+               <!-- Date examen avec style conditionnel -->
+               <DataGridTemplateColumn Header="Date Examen" Width="100">
+                   <DataGridTemplateColumn.CellTemplate>
+                       <DataTemplate>
+                           <TextBlock Text="{Binding DateExamen}" HorizontalAlignment="Center">
+                               <TextBlock.Style>
+                                   <Style TargetType="TextBlock">
+                                       <Style.Triggers>
+                                           <DataTrigger Binding="{Binding EstAntecedent}" Value="True">
+                                               <Setter Property="Foreground" Value="Red"/>
+                                               <Setter Property="FontWeight" Value="Bold"/>
+                                           </DataTrigger>
+                                       </Style.Triggers>
+                                   </Style>
+                               </TextBlock.Style>
+                           </TextBlock>
+                       </DataTemplate>
+                   </DataGridTemplateColumn.CellTemplate>
+               </DataGridTemplateColumn>
 
-        <!-- Label logs -->
-        <TextBlock 
-            Text="Journal des opérations :" 
-            FontWeight="Bold" 
-            Grid.Row="4" 
-            Margin="0,0,0,5"/>
+               <DataGridTextColumn Header="Statut" Binding="{Binding Statut}" Width="100"/>
+           </DataGrid.Columns>
+       </DataGrid>
 
-        <!-- Zone de logs -->
-        <TextBox 
-            x:Name="txtLog"
-            Grid.Row="5"
-            TextWrapping="Wrap"
-            IsReadOnly="True"
-            VerticalScrollBarVisibility="Auto"
-            HorizontalScrollBarVisibility="Auto"
-            FontFamily="Consolas"
-            FontSize="10"
-            Background="#F5F5F5"/>
-    </Grid>
+       <!-- Label logs -->
+       <TextBlock
+           Text="Journal des opérations :"
+           FontWeight="Bold"
+           Grid.Row="5"
+           Margin="0,0,0,5"/>
+
+       <!-- Zone de logs -->
+       <TextBox
+           x:Name="txtLog"
+           Grid.Row="6"
+           TextWrapping="Wrap"
+           IsReadOnly="True"
+           VerticalScrollBarVisibility="Auto"
+           HorizontalScrollBarVisibility="Auto"
+           FontFamily="Consolas"
+           FontSize="10"
+           Background="#F5F5F5"/>
+   </Grid>
 </Window>

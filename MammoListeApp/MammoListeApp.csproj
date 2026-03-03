@@ -1,21 +1,15 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<OutputType>WinExe</OutputType>
 		<TargetFramework>net8.0-windows</TargetFramework>
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<UseWPF>true</UseWPF>
-		<ApplicationIcon>DicomTransferApp.ico</ApplicationIcon>
 	</PropertyGroup>
 
 	<ItemGroup>
 		<PackageReference Include="ClosedXML" Version="0.102.2" />
 		<PackageReference Include="fo-dicom" Version="5.2.5" />
 		<PackageReference Include="fo-dicom.Imaging.Desktop" Version="5.2.5" />
-		<PackageReference Include="System.Data.SqlClient" Version="4.9.0" />
-	</ItemGroup>
-
-	<ItemGroup>
-		<Resource Include="DicomTransferApp.ico" />
 	</ItemGroup>
 </Project>
