@@ -248,7 +248,7 @@ namespace MammoListeApp
         {
             if (string.IsNullOrWhiteSpace(description)) return false;
             string d = Normalize(description); // tout en minuscules, sans accents
-            return d.Contains("depistage") || d.Contains("screening");
+            return d.Contains("mammographie de depistage");
         }
 
         private static string Normalize(string s)
