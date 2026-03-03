@@ -134,7 +134,17 @@ namespace MammoListeApp
 
                 request.OnResponseReceived += (_, res) =>
                 {
-                    if (!res.HasDataset || res.Status != DicomStatus.Pending) return;
+                    // Logger TOUJOURS le statut pour diagnostiquer
+                    if (!res.HasDataset)
+                    {
+                        Log($"  [C-FIND] Statut={res.Status.Description} (code={res.Status.Code:X4}) — pas de dataset");
+                        return;
+                    }
+
+                    Log($"  [C-FIND] Statut={res.Status.Description} | dataset reçu");
+
+                    // Accepter Pending ET Success (certains PACS envoient Success sur le dernier résultat)
+                    if (res.Status != DicomStatus.Pending && res.Status != DicomStatus.Success) return;
 
                     // ── Debug : afficher ce que le PACS renvoie ────────────────
                     string[] modsDbg = Array.Empty<string>();
