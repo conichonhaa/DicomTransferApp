@@ -247,8 +247,7 @@ namespace MammoListeApp
         private static bool EstDepistage(string description)
         {
             if (string.IsNullOrWhiteSpace(description)) return false;
-            string d = Normalize(description); // tout en minuscules, sans accents
-            return d.Contains("mammographie de depistage");
+            return description.Equals("Mammographie de Depistage", StringComparison.OrdinalIgnoreCase);
         }
 
         private static string Normalize(string s)
