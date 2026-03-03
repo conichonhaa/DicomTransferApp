@@ -2,6 +2,7 @@
 {
     public class ResultatTransfert
     {
+        public string Salle { get; set; }
         public string NomComplet { get; set; }
         public string Matricule { get; set; }
         public string DescriptionMammographie { get; set; }

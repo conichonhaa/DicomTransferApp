@@ -1,4 +1,5 @@
-﻿using FellowOakDicom;
+﻿using ClosedXML.Excel;
+using FellowOakDicom;
 using FellowOakDicom.Network;
 using FellowOakDicom.Network.Client;
 using System;
@@ -11,6 +12,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 
 namespace DicomTransferApp
 {
@@ -28,6 +30,7 @@ namespace DicomTransferApp
             btnConfigPACS.Click += BtnConfigPACS_Click;
             btnTransfert.Click += BtnTransfert_Click;
             btnCopierResultats.Click += BtnCopierResultats_Click;
+            btnExportExcel.Click += BtnExportExcel_Click;
 
             _config = ConfigurationPACS.Charger();
         }
@@ -187,6 +190,7 @@ namespace DicomTransferApp
 
                                 ResultatsTransfert.Add(new ResultatTransfert
                                 {
+                                    Salle = GetSalleSelectionnee(),
                                     NomComplet = patient.NomComplet,
                                     Matricule = patient.Matricule,
                                     DescriptionMammographie = mammographie.Description,
@@ -202,6 +206,7 @@ namespace DicomTransferApp
                                 Log($"✗ Pas de mammographie disponible pour {annee}");
                                 ResultatsTransfert.Add(new ResultatTransfert
                                 {
+                                    Salle = GetSalleSelectionnee(),
                                     NomComplet = patient.NomComplet,
                                     Matricule = patient.Matricule,
                                     DescriptionMammographie = "Pas de mammographie disponible",
@@ -218,6 +223,7 @@ namespace DicomTransferApp
                             Log($"ERREUR: {ex.Message}");
                             ResultatsTransfert.Add(new ResultatTransfert
                             {
+                                Salle = GetSalleSelectionnee(),
                                 NomComplet = patient.NomComplet,
                                 Matricule = patient.Matricule,
                                 DescriptionMammographie = $"Erreur : {ex.Message}",
@@ -313,6 +319,85 @@ namespace DicomTransferApp
                 MessageBox.Show($"Erreur lors de la copie : {ex.Message}", "Erreur", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
+
+        private string GetSalleSelectionnee()
+        {
+            if (cboSalle.SelectedItem is ComboBoxItem item)
+                return item.Content?.ToString() ?? "";
+            return "";
+        }
+
+        private void BtnExportExcel_Click(object sender, RoutedEventArgs e)
+        {
+            if (ResultatsTransfert.Count == 0)
+            {
+                MessageBox.Show("Aucun résultat à exporter.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Filter = "Fichiers Excel (*.xlsx)|*.xlsx",
+                FileName = $"Transferts_Mammographies_{DateTime.Now:yyyyMMdd_HHmm}.xlsx",
+                DefaultExt = ".xlsx"
+            };
+
+            if (dialog.ShowDialog() != true)
+                return;
+
+            try
+            {
+                using var workbook = new XLWorkbook();
+                var sheet = workbook.Worksheets.Add("Résultats");
+
+                // En-têtes
+                string[] headers = { "Salle", "Patient", "Matricule", "Année demandée", "Mammographie", "Date Examen", "Statut", "Remarque" };
+                for (int i = 0; i < headers.Length; i++)
+                {
+                    var cell = sheet.Cell(1, i + 1);
+                    cell.Value = headers[i];
+                    cell.Style.Font.Bold = true;
+                    cell.Style.Fill.BackgroundColor = XLColor.LightBlue;
+                }
+
+                // Données
+                int row = 2;
+                foreach (var r in ResultatsTransfert)
+                {
+                    sheet.Cell(row, 1).Value = r.Salle ?? "";
+                    sheet.Cell(row, 2).Value = r.NomComplet;
+                    sheet.Cell(row, 3).Value = r.Matricule;
+                    sheet.Cell(row, 4).Value = r.AnneeRecherchee;
+                    sheet.Cell(row, 5).Value = r.DescriptionMammographie;
+                    sheet.Cell(row, 6).Value = r.DateExamen;
+                    sheet.Cell(row, 7).Value = r.Statut;
+
+                    string remarque = "";
+                    if (r.TypeDifference == "ANTERIEURE")
+                        remarque = $"ATTENTION : Mammographie anterieure (pas de mammo en {r.AnneeRecherchee})";
+                    else if (r.TypeDifference == "POSTERIEURE")
+                        remarque = $"INFO : Mammographie posterieure (pas de mammo en {r.AnneeRecherchee})";
+                    sheet.Cell(row, 8).Value = remarque;
+
+                    if (r.EstAntecedent)
+                        sheet.Row(row).Style.Font.FontColor = XLColor.Red;
+
+                    row++;
+                }
+
+                sheet.Columns().AdjustToContents();
+
+                workbook.SaveAs(dialog.FileName);
+                MessageBox.Show($"Export réussi :\n{dialog.FileName}", "Succès", MessageBoxButton.OK, MessageBoxImage.Information);
+                Log($"Export Excel : {dialog.FileName}");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Erreur lors de l'export : {ex.Message}", "Erreur", MessageBoxButton.OK, MessageBoxImage.Error);
+                Log($"Erreur export Excel : {ex.Message}");
+            }
+        }
+
         private async Task<Mammographie> RechercherMammographie(Patient patient)
         {
             Log($"Recherche pour matricule: {patient.Matricule}");
