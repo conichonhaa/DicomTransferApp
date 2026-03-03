@@ -118,16 +118,18 @@ namespace MammoListeApp
 
                 var dataset = new DicomDataset
                 {
-                    { DicomTag.StudyDate,         dateStr },
+                    { DicomTag.QueryRetrieveLevel, "STUDY" },   // obligatoire pour certains PACS
+                    { DicomTag.StudyDate,          dateStr },
                     { DicomTag.PatientName,        "" },
                     { DicomTag.PatientID,          "" },
                     { DicomTag.PatientBirthDate,   "" },
                     { DicomTag.StudyInstanceUID,   "" },
                     { DicomTag.StudyDescription,   "" },
                     { DicomTag.StudyTime,          "" },
-                    { DicomTag.ModalitiesInStudy,  "" },
+                    // ModalitiesInStudy retiré : non supporté par certains PACS → filtre côté client
                     { DicomTag.StationName,        "" },   // (0008,1010) - identifie la machine
                     { DicomTag.AccessionNumber,    "" },
+                    { DicomTag.Modality,           "" },   // (0008,0060) - alternative à ModalitiesInStudy
                 };
 
                 var request = new DicomCFindRequest(DicomQueryRetrieveLevel.Study) { Dataset = dataset };
@@ -147,16 +149,14 @@ namespace MammoListeApp
                     if (res.Status != DicomStatus.Pending && res.Status != DicomStatus.Success) return;
 
                     // ── Debug : afficher ce que le PACS renvoie ────────────────
-                    string[] modsDbg = Array.Empty<string>();
-                    res.Dataset.TryGetValues(DicomTag.ModalitiesInStudy, out modsDbg);
+                    string modDbg     = res.Dataset.GetSingleValueOrDefault(DicomTag.Modality, "(vide)");
                     string descDbg    = res.Dataset.GetSingleValueOrDefault(DicomTag.StudyDescription, "(vide)");
                     string stationDbg = res.Dataset.GetSingleValueOrDefault(DicomTag.StationName, "(vide)");
                     string patDbg     = res.Dataset.GetSingleValueOrDefault(DicomTag.PatientName, "?");
-                    Log($"  [DEBUG] Patient={patDbg} | Mods=[{string.Join(",", modsDbg ?? Array.Empty<string>())}] | Station={stationDbg} | Desc={descDbg}");
+                    Log($"  [DEBUG] Patient={patDbg} | Mod={modDbg} | Station={stationDbg} | Desc={descDbg}");
 
                     // ── Filtrage Modalité ──────────────────────────────────────
-                    string[] mods = modsDbg;
-                    bool isMG = mods?.Any(m => m.Equals("MG", StringComparison.OrdinalIgnoreCase)) == true;
+                    bool isMG = modDbg.Equals("MG", StringComparison.OrdinalIgnoreCase);
                     if (!isMG) { Log($"    → ignoré (pas MG)"); return; }
 
                     // ── Filtrage Dépistage ─────────────────────────────────────
