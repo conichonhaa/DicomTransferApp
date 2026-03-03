@@ -136,15 +136,22 @@ namespace MammoListeApp
                 {
                     if (!res.HasDataset || res.Status != DicomStatus.Pending) return;
 
+                    // ── Debug : afficher ce que le PACS renvoie ────────────────
+                    string[] modsDbg = Array.Empty<string>();
+                    res.Dataset.TryGetValues(DicomTag.ModalitiesInStudy, out modsDbg);
+                    string descDbg    = res.Dataset.GetSingleValueOrDefault(DicomTag.StudyDescription, "(vide)");
+                    string stationDbg = res.Dataset.GetSingleValueOrDefault(DicomTag.StationName, "(vide)");
+                    string patDbg     = res.Dataset.GetSingleValueOrDefault(DicomTag.PatientName, "?");
+                    Log($"  [DEBUG] Patient={patDbg} | Mods=[{string.Join(",", modsDbg ?? Array.Empty<string>())}] | Station={stationDbg} | Desc={descDbg}");
+
                     // ── Filtrage Modalité ──────────────────────────────────────
-                    string[] mods = Array.Empty<string>();
-                    res.Dataset.TryGetValues(DicomTag.ModalitiesInStudy, out mods);
+                    string[] mods = modsDbg;
                     bool isMG = mods?.Any(m => m.Equals("MG", StringComparison.OrdinalIgnoreCase)) == true;
-                    if (!isMG) return;
+                    if (!isMG) { Log($"    → ignoré (pas MG)"); return; }
 
                     // ── Filtrage Dépistage ─────────────────────────────────────
                     string desc = res.Dataset.GetSingleValueOrDefault(DicomTag.StudyDescription, "");
-                    if (depistageSeul && !EstDepistage(desc)) return;
+                    if (depistageSeul && !EstDepistage(desc)) { Log($"    → ignoré (pas dépistage)"); return; }
 
                     // ── Identification de la salle ─────────────────────────────
                     string stationName = res.Dataset.GetSingleValueOrDefault(DicomTag.StationName, "");
@@ -153,9 +160,8 @@ namespace MammoListeApp
                     // ── Filtrage par salle ─────────────────────────────────────
                     if (!string.IsNullOrEmpty(salleFiltre))
                     {
-                        // Comparer le AE Title demandé au nom de station
                         bool match = stationName.Equals(salleFiltre, StringComparison.OrdinalIgnoreCase);
-                        if (!match) return;
+                        if (!match) { Log($"    → ignoré (salle '{stationName}' ≠ filtre '{salleFiltre}')"); return; }
                     }
 
                     resultats.Add(new MammographieEntry
@@ -241,10 +247,8 @@ namespace MammoListeApp
         private static bool EstDepistage(string description)
         {
             if (string.IsNullOrWhiteSpace(description)) return false;
-            string d = Normalize(description);
-            return d.Contains("depistage") || d.Contains("screening") ||
-                   d.Contains("mammo")     || d.Contains("mammographie") ||
-                   d.Contains("breast");
+            string d = Normalize(description); // tout en minuscules, sans accents
+            return d.Contains("mammographie de depistage");
         }
 
         private static string Normalize(string s)
