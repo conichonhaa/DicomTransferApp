@@ -182,6 +182,9 @@ namespace MammoListeApp
                         _config.SourceCallingAE,
                         _config.PACSSourceAETitle);
 
+                    // Tag privé 0045,1001 = SourceApplicationEntityTitle alternatif (contient ex. MCCO_MG1)
+                    var tagPriveSource = new DicomTag(0x0045, 0x1001);
+
                     var seriesDataset = new DicomDataset
                     {
                         { DicomTag.QueryRetrieveLevel, "SERIES" },
@@ -189,27 +192,33 @@ namespace MammoListeApp
                         { DicomTag.SeriesInstanceUID,  "" },
                         { DicomTag.StationName,        "" },
                         { DicomTag.Modality,           "" },
+                        { tagPriveSource,              "" },
                     };
 
                     var stationNames = new List<string>();
+                    var sourcesPrivees = new List<string>();
                     var seriesRequest = new DicomCFindRequest(DicomQueryRetrieveLevel.Series) { Dataset = seriesDataset };
                     seriesRequest.OnResponseReceived += (_, sRes) =>
                     {
                         if (!sRes.HasDataset) return;
                         string sn = sRes.Dataset.GetSingleValueOrDefault(DicomTag.StationName, "");
                         if (!string.IsNullOrEmpty(sn)) stationNames.Add(sn);
+                        string sp = sRes.Dataset.GetSingleValueOrDefault(tagPriveSource, "");
+                        if (!string.IsNullOrEmpty(sp)) sourcesPrivees.Add(sp);
                     };
 
                     await seriesClient.AddRequestAsync(seriesRequest);
                     await seriesClient.SendAsync();
 
-                    // Préférer le nom de station d'acquisition réel ; ignorer les serveurs de post-traitement (iCAD, etc.)
-                    string stationName = stationNames
-                        .FirstOrDefault(s => !s.StartsWith("iCAD", StringComparison.OrdinalIgnoreCase))
+                    // Priorité : 1) StationName non-iCAD  2) tag privé 0045,1001  3) StationName iCAD
+                    string stationName =
+                        stationNames.FirstOrDefault(s => !s.StartsWith("iCAD", StringComparison.OrdinalIgnoreCase))
+                        ?? sourcesPrivees.FirstOrDefault(s => _salleMapping.ContainsKey(s))
                         ?? stationNames.FirstOrDefault()
                         ?? "";
 
-                    Log($"  [C-FIND SERIES] {etude.NomPatient} → Station={stationName} (toutes: {string.Join(", ", stationNames.Distinct())})");
+                    string allStations = string.Join(", ", stationNames.Concat(sourcesPrivees.Select(s => $"[0045,1001]={s}")).Distinct());
+                    Log($"  [C-FIND SERIES] {etude.NomPatient} → Station={stationName} (toutes: {allStations})");
 
                     // ── Filtrage par salle ─────────────────────────────────────
                     if (!string.IsNullOrEmpty(salleFiltre))
