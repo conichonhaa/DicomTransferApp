@@ -155,12 +155,13 @@ namespace MammoListeApp
                     string patDbg     = res.Dataset.GetSingleValueOrDefault(DicomTag.PatientName, "?");
                     Log($"  [DEBUG] Patient={patDbg} | Mod={modDbg} | Station={stationDbg} | Desc={descDbg}");
 
-                    // ── Filtrage Modalité ──────────────────────────────────────
-                    bool isMG = modDbg.Equals("MG", StringComparison.OrdinalIgnoreCase);
-                    if (!isMG) { Log($"    → ignoré (pas MG)"); return; }
+                    // ── Filtrage Mammographie (Modality + mots-clés description) ─
+                    string desc  = res.Dataset.GetSingleValueOrDefault(DicomTag.StudyDescription, "");
+                    bool isMG    = modDbg.Equals("MG", StringComparison.OrdinalIgnoreCase);
+                    bool isMammo = EstMammographie(desc);
+                    if (!isMG || !isMammo) { Log($"    → ignoré (isMG={isMG}, isMammo={isMammo})"); return; }
 
                     // ── Filtrage Dépistage ─────────────────────────────────────
-                    string desc = res.Dataset.GetSingleValueOrDefault(DicomTag.StudyDescription, "");
                     if (depistageSeul && !EstDepistage(desc)) { Log($"    → ignoré (pas dépistage)"); return; }
 
                     // ── Identification de la salle ─────────────────────────────
@@ -252,6 +253,16 @@ namespace MammoListeApp
             if (!string.IsNullOrEmpty(stationName) && _salleMapping.TryGetValue(stationName, out string nom))
                 return nom;
             return fallback; // Retourne la valeur brute si non mappée
+        }
+
+        private bool EstMammographie(string description)
+        {
+            if (string.IsNullOrEmpty(description)) return false;
+            string desc = Normalize(description);
+            string[] motsCles = { "mammographie", "mammo", "breast", "depistage" };
+            bool ok = motsCles.Any(k => desc.Contains(k));
+            if (ok) Log($"  → Mammographie détectée : {description}");
+            return ok;
         }
 
         private static bool EstDepistage(string description)
