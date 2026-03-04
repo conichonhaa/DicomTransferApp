@@ -114,6 +114,14 @@
                         </Style>
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
+                <DataGridTextColumn Header="Accession N°" Binding="{Binding AccessionNumber}" Width="120">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="FontFamily" Value="Consolas"/>
+                            <Setter Property="Padding" Value="4,0"/>
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
                 <DataGridTextColumn Header="AE Source" Binding="{Binding SourceAETitle}" Width="120">
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="TextBlock">

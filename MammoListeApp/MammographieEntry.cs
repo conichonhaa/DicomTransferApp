@@ -10,6 +10,7 @@ namespace MammoListeApp
         public string Description { get; set; }
         public string StudyUID { get; set; }
         public string SourceAETitle { get; set; }
+        public string AccessionNumber { get; set; }
 
         public string DateNaissanceFormatee => FormatDate(DateNaissanceRaw);
         public string HeureFormatee => FormatHeure(HeureExamen);

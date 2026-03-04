@@ -162,6 +162,7 @@ namespace MammoListeApp
                         HeureExamen      = res.Dataset.GetSingleValueOrDefault(DicomTag.StudyTime, ""),
                         Description      = desc,
                         StudyUID         = res.Dataset.GetSingleValueOrDefault(DicomTag.StudyInstanceUID, ""),
+                        AccessionNumber  = res.Dataset.GetSingleValueOrDefault(DicomTag.AccessionNumber, ""),
                         Salle            = "",
                         SourceAETitle    = "",
                     });
@@ -366,10 +367,10 @@ namespace MammoListeApp
                 ws.Cell(1, 1).Value = $"Mammographies de Dépistage — {dateFr}  —  {GetSalleLabel()}";
                 ws.Cell(1, 1).Style.Font.Bold = true;
                 ws.Cell(1, 1).Style.Font.FontSize = 14;
-                ws.Range(1, 1, 1, 7).Merge();
+                ws.Range(1, 1, 1, 8).Merge();
 
                 // ── En-têtes ───────────────────────────────────────────────────
-                string[] headers = { "Salle", "Patient", "Patient ID / Matricule", "Date Naissance", "Heure", "Description", "AE Source" };
+                string[] headers = { "Salle", "Patient", "Patient ID / Matricule", "Date Naissance", "Heure", "Description", "Accession N°", "AE Source" };
                 for (int i = 0; i < headers.Length; i++)
                 {
                     var cell = ws.Cell(2, i + 1);
@@ -390,11 +391,12 @@ namespace MammoListeApp
                     ws.Cell(row, 4).Value = r.DateNaissanceFormatee;
                     ws.Cell(row, 5).Value = r.HeureFormatee;
                     ws.Cell(row, 6).Value = r.Description;
-                    ws.Cell(row, 7).Value = r.SourceAETitle;
+                    ws.Cell(row, 7).Value = r.AccessionNumber;
+                    ws.Cell(row, 8).Value = r.SourceAETitle;
 
                     // Alterner la couleur de fond
                     if (row % 2 == 0)
-                        ws.Range(row, 1, row, 7).Style.Fill.BackgroundColor = XLColor.FromHtml("#EEF2FF");
+                        ws.Range(row, 1, row, 8).Style.Fill.BackgroundColor = XLColor.FromHtml("#EEF2FF");
 
                     row++;
                 }
