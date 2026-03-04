@@ -390,10 +390,10 @@ namespace MammoListeApp
                 ws.Cell(1, 1).Value = $"Mammographies de Dépistage — {dateFr}  —  {GetSalleLabel()}";
                 ws.Cell(1, 1).Style.Font.Bold = true;
                 ws.Cell(1, 1).Style.Font.FontSize = 14;
-                ws.Range(1, 1, 1, 9).Merge();
+                ws.Range(1, 1, 1, 7).Merge();
 
                 // ── En-têtes ───────────────────────────────────────────────────
-                string[] headers = { "Salle", "Patient", "Patient ID / Matricule", "Autre ID Patient", "Date Examen", "Heure", "Accession N°", "Opérateur", "AE Source" };
+                string[] headers = { "Salle", "Patient", "Matricule", "Date Examen", "Heure", "Accession N°", "Opérateur" };
                 for (int i = 0; i < headers.Length; i++)
                 {
                     var cell = ws.Cell(2, i + 1);
@@ -410,17 +410,15 @@ namespace MammoListeApp
                 {
                     ws.Cell(row, 1).Value = r.Salle;
                     ws.Cell(row, 2).Value = r.NomPatient;
-                    ws.Cell(row, 3).Value = r.PatientID;
-                    ws.Cell(row, 4).Value = r.OtherPatientIDs;
-                    ws.Cell(row, 5).Value = r.DateExamenFormatee;
-                    ws.Cell(row, 6).Value = r.HeureFormatee;
-                    ws.Cell(row, 7).Value = r.AccessionNumber;
-                    ws.Cell(row, 8).Value = r.OperatorsNameFormatee;
-                    ws.Cell(row, 9).Value = r.SourceAETitle;
+                    ws.Cell(row, 3).Value = r.OtherPatientIDs;
+                    ws.Cell(row, 4).Value = r.DateExamenFormatee;
+                    ws.Cell(row, 5).Value = r.HeureFormatee;
+                    ws.Cell(row, 6).Value = r.AccessionNumber;
+                    ws.Cell(row, 7).Value = r.OperatorsNameFormatee;
 
                     // Alterner la couleur de fond
                     if (row % 2 == 0)
-                        ws.Range(row, 1, row, 9).Style.Fill.BackgroundColor = XLColor.FromHtml("#EEF2FF");
+                        ws.Range(row, 1, row, 7).Style.Fill.BackgroundColor = XLColor.FromHtml("#EEF2FF");
 
                     row++;
                 }
