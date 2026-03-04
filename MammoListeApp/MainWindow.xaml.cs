@@ -19,9 +19,10 @@ namespace MammoListeApp
         // Mapping AE Title → Nom salle affiché
         private static readonly Dictionary<string, string> _salleMapping = new(StringComparer.OrdinalIgnoreCase)
         {
-            { "ZKPRISTINA", "ZK" },
-            { "HKPRISTINA", "HK" },
-            { "MCCO_MG1",   "Cloche d'Or" },
+            { "ZKPRISTINA",  "ZK" },
+            { "HKPRISTINA",  "HK" },
+            { "MCCO_MG1",    "Cloche d'Or" },
+            { "MCCO-RX-MG1", "Cloche d'Or" },
         };
 
         private ConfigurationPACS _config;
@@ -207,7 +208,8 @@ namespace MammoListeApp
                     // ── Filtrage par salle ─────────────────────────────────────
                     if (!string.IsNullOrEmpty(salleFiltre))
                     {
-                        bool match = stationName.Equals(salleFiltre, StringComparison.OrdinalIgnoreCase);
+                        bool match = MapperSalle(stationName, stationName)
+                            .Equals(MapperSalle(salleFiltre, salleFiltre), StringComparison.OrdinalIgnoreCase);
                         if (!match) { Log($"    → ignoré (salle '{stationName}' ≠ filtre '{salleFiltre}')"); continue; }
                     }
 
