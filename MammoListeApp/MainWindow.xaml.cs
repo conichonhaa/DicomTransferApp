@@ -155,11 +155,9 @@ namespace MammoListeApp
                     string patDbg     = res.Dataset.GetSingleValueOrDefault(DicomTag.PatientName, "?");
                     Log($"  [DEBUG] Patient={patDbg} | Mod={modDbg} | Station={stationDbg} | Desc={descDbg}");
 
-                    // ── Filtrage Mammographie (Modality + mots-clés description) ─
-                    string desc  = res.Dataset.GetSingleValueOrDefault(DicomTag.StudyDescription, "");
-                    bool isMG    = modDbg.Equals("MG", StringComparison.OrdinalIgnoreCase);
-                    bool isMammo = EstMammographie(desc);
-                    if (!isMG || !isMammo) { Log($"    → ignoré (isMG={isMG}, isMammo={isMammo})"); return; }
+                    // ── Filtrage Mammographie (mots-clés description) ─────────
+                    string desc = res.Dataset.GetSingleValueOrDefault(DicomTag.StudyDescription, "");
+                    if (!EstMammographie(desc)) { Log($"    → ignoré (pas mammographie)"); return; }
 
                     // ── Filtrage Dépistage ─────────────────────────────────────
                     if (depistageSeul && !EstDepistage(desc)) { Log($"    → ignoré (pas dépistage)"); return; }
