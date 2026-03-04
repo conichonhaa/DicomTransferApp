@@ -191,19 +191,25 @@ namespace MammoListeApp
                         { DicomTag.Modality,           "" },
                     };
 
-                    string stationName = "";
+                    var stationNames = new List<string>();
                     var seriesRequest = new DicomCFindRequest(DicomQueryRetrieveLevel.Series) { Dataset = seriesDataset };
                     seriesRequest.OnResponseReceived += (_, sRes) =>
                     {
                         if (!sRes.HasDataset) return;
                         string sn = sRes.Dataset.GetSingleValueOrDefault(DicomTag.StationName, "");
-                        if (!string.IsNullOrEmpty(sn)) stationName = sn;
+                        if (!string.IsNullOrEmpty(sn)) stationNames.Add(sn);
                     };
 
                     await seriesClient.AddRequestAsync(seriesRequest);
                     await seriesClient.SendAsync();
 
-                    Log($"  [C-FIND SERIES] {etude.NomPatient} → Station={stationName}");
+                    // Préférer le nom de station d'acquisition réel ; ignorer les serveurs de post-traitement (iCAD, etc.)
+                    string stationName = stationNames
+                        .FirstOrDefault(s => !s.StartsWith("iCAD", StringComparison.OrdinalIgnoreCase))
+                        ?? stationNames.FirstOrDefault()
+                        ?? "";
+
+                    Log($"  [C-FIND SERIES] {etude.NomPatient} → Station={stationName} (toutes: {string.Join(", ", stationNames.Distinct())})");
 
                     // ── Filtrage par salle ─────────────────────────────────────
                     if (!string.IsNullOrEmpty(salleFiltre))
