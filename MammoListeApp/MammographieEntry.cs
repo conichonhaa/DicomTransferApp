@@ -15,9 +15,10 @@ namespace MammoListeApp
         public string OtherPatientIDs { get; set; }
         public string OperatorsName { get; set; }
 
-        public string DateNaissanceFormatee => FormatDate(DateNaissanceRaw);
-        public string DateExamenFormatee => FormatDate(DateExamenRaw);
-        public string HeureFormatee => FormatHeure(HeureExamen);
+        public string DateNaissanceFormatee    => FormatDate(DateNaissanceRaw);
+        public string DateExamenFormatee      => FormatDate(DateExamenRaw);
+        public string HeureFormatee           => FormatHeure(HeureExamen);
+        public string OperatorsNameFormatee   => OperateurMappingService.Resolve(OperatorsName);
 
         private static string FormatDate(string dicomDate)
         {

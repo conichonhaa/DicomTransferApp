@@ -37,6 +37,7 @@ namespace MammoListeApp
             btnRechercher.Click   += async (_, _) => await Rechercher();
             btnExportExcel.Click  += BtnExportExcel_Click;
             btnConfig.Click       += BtnConfig_Click;
+            btnOperateurs.Click   += BtnOperateurs_Click;
 
             _config = ConfigurationPACS.Charger();
             Log("Application démarrée. Sélectionnez une date et cliquez sur Rechercher.");
@@ -67,6 +68,20 @@ namespace MammoListeApp
             {
                 _config = ConfigurationPACS.Charger();
                 Log("Configuration PACS rechargée.");
+            }
+        }
+
+        // ─── Mapping opérateurs ───────────────────────────────────────────────────
+
+        private void BtnOperateurs_Click(object sender, RoutedEventArgs e)
+        {
+            var win = new OperateurMappingWindow { Owner = this };
+            if (win.ShowDialog() == true)
+            {
+                // Forcer la mise à jour des colonnes déjà affichées
+                dgResultats.ItemsSource = null;
+                dgResultats.ItemsSource = Resultats;
+                Log("Mapping opérateurs mis à jour.");
             }
         }
 
@@ -400,7 +415,7 @@ namespace MammoListeApp
                     ws.Cell(row, 5).Value = r.DateExamenFormatee;
                     ws.Cell(row, 6).Value = r.HeureFormatee;
                     ws.Cell(row, 7).Value = r.AccessionNumber;
-                    ws.Cell(row, 8).Value = r.OperatorsName;
+                    ws.Cell(row, 8).Value = r.OperatorsNameFormatee;
                     ws.Cell(row, 9).Value = r.SourceAETitle;
 
                     // Alterner la couleur de fond

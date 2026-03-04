@@ -1,0 +1,59 @@
+<Window x:Class="MammoListeApp.OperateurMappingWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Mapping des opérateurs"
+        Height="420" Width="520"
+        MinHeight="300" MinWidth="400"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Titre -->
+        <TextBlock Grid.Row="0" Text="Mapping des noms d'opérateur" FontSize="14" FontWeight="Bold" Margin="0,0,0,6"/>
+        <TextBlock Grid.Row="1" Margin="0,0,0,10" Foreground="#555" TextWrapping="Wrap"
+                   Text="Associez la valeur brute reçue du PACS (ex : ^ER^) au nom que vous souhaitez afficher."/>
+
+        <!-- DataGrid éditable -->
+        <DataGrid Grid.Row="2"
+                  x:Name="dgMapping"
+                  AutoGenerateColumns="False"
+                  CanUserAddRows="False"
+                  CanUserDeleteRows="False"
+                  GridLinesVisibility="Horizontal"
+                  AlternatingRowBackground="#F9F9F9"
+                  RowHeight="28"
+                  HeadersVisibility="Column"
+                  Margin="0,0,0,8">
+            <DataGrid.ColumnHeaderStyle>
+                <Style TargetType="DataGridColumnHeader">
+                    <Setter Property="Background" Value="#1565C0"/>
+                    <Setter Property="Foreground" Value="White"/>
+                    <Setter Property="FontWeight" Value="Bold"/>
+                    <Setter Property="Padding" Value="8,4"/>
+                </Style>
+            </DataGrid.ColumnHeaderStyle>
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Valeur DICOM brute" Binding="{Binding DicomValue, UpdateSourceTrigger=PropertyChanged}" Width="*"/>
+                <DataGridTextColumn Header="Nom affiché" Binding="{Binding AffichageName, UpdateSourceTrigger=PropertyChanged}" Width="*"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- Boutons Ajouter / Supprimer -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,10">
+            <Button x:Name="btnAjouter" Content="+ Ajouter une ligne" Padding="10,5" Margin="0,0,8,0"/>
+            <Button x:Name="btnSupprimer" Content="− Supprimer la ligne" Padding="10,5"/>
+        </StackPanel>
+
+        <!-- Boutons OK / Annuler -->
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Annuler" Width="90" Margin="0,0,10,0" IsCancel="True"/>
+            <Button x:Name="btnSauvegarder" Content="Sauvegarder" Width="110" IsDefault="True"/>
+        </StackPanel>
+    </Grid>
+</Window>
