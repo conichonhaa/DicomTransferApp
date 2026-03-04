@@ -128,7 +128,7 @@ namespace MammoListeApp
                     { DicomTag.StudyDescription,   "" },
                     { DicomTag.StudyTime,          "" },
                     { DicomTag.AccessionNumber,    "" },
-                    { DicomTag.OtherPatientIDs,    "" },
+                    { new DicomTag(0x0010, 0x1000),    "" },
                     { DicomTag.Modality,           "" },
                 };
 
@@ -164,7 +164,7 @@ namespace MammoListeApp
                         Description      = desc,
                         StudyUID         = res.Dataset.GetSingleValueOrDefault(DicomTag.StudyInstanceUID, ""),
                         AccessionNumber  = res.Dataset.GetSingleValueOrDefault(DicomTag.AccessionNumber, ""),
-                        OtherPatientIDs  = res.Dataset.GetSingleValueOrDefault(DicomTag.OtherPatientIDs, ""),
+                        OtherPatientIDs  = res.Dataset.GetSingleValueOrDefault(new DicomTag(0x0010, 0x1000), ""),
                         Salle            = "",
                         SourceAETitle    = "",
                     });
