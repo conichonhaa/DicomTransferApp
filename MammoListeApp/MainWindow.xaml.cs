@@ -128,6 +128,7 @@ namespace MammoListeApp
                     { DicomTag.StudyDescription,   "" },
                     { DicomTag.StudyTime,          "" },
                     { DicomTag.AccessionNumber,    "" },
+                    { DicomTag.OtherPatientIDs,    "" },
                     { DicomTag.Modality,           "" },
                 };
 
@@ -163,6 +164,7 @@ namespace MammoListeApp
                         Description      = desc,
                         StudyUID         = res.Dataset.GetSingleValueOrDefault(DicomTag.StudyInstanceUID, ""),
                         AccessionNumber  = res.Dataset.GetSingleValueOrDefault(DicomTag.AccessionNumber, ""),
+                        OtherPatientIDs  = res.Dataset.GetSingleValueOrDefault(DicomTag.OtherPatientIDs, ""),
                         Salle            = "",
                         SourceAETitle    = "",
                     });
@@ -192,6 +194,7 @@ namespace MammoListeApp
                         { DicomTag.StudyInstanceUID,   etude.StudyUID },
                         { DicomTag.SeriesInstanceUID,  "" },
                         { DicomTag.StationName,        "" },
+                        { DicomTag.OperatorsName,      "" },
                         { DicomTag.Modality,           "" },
                     };
                     // Tag privé : VR doit être spécifié explicitement (pas dans le dictionnaire fo-dicom)
@@ -199,6 +202,7 @@ namespace MammoListeApp
 
                     var stationNames = new List<string>();
                     var sourcesPrivees = new List<string>();
+                    var operatorsNames = new List<string>();
                     var seriesRequest = new DicomCFindRequest(DicomQueryRetrieveLevel.Series) { Dataset = seriesDataset };
                     seriesRequest.OnResponseReceived += (_, sRes) =>
                     {
@@ -207,6 +211,8 @@ namespace MammoListeApp
                         if (!string.IsNullOrEmpty(sn)) stationNames.Add(sn);
                         string sp = sRes.Dataset.GetSingleValueOrDefault(tagPriveSource, "");
                         if (!string.IsNullOrEmpty(sp)) sourcesPrivees.Add(sp);
+                        string op = sRes.Dataset.GetSingleValueOrDefault(DicomTag.OperatorsName, "");
+                        if (!string.IsNullOrEmpty(op)) operatorsNames.Add(op);
                     };
 
                     await seriesClient.AddRequestAsync(seriesRequest);
@@ -230,8 +236,9 @@ namespace MammoListeApp
                         if (!match) { Log($"    → ignoré (salle '{stationName}' ≠ filtre '{salleFiltre}')"); continue; }
                     }
 
-                    etude.SourceAETitle = stationName;
-                    etude.Salle         = MapperSalle(stationName, stationName);
+                    etude.SourceAETitle  = stationName;
+                    etude.Salle          = MapperSalle(stationName, stationName);
+                    etude.OperatorsName  = operatorsNames.FirstOrDefault() ?? "";
                     resultats.Add(etude);
                 }
 
@@ -367,10 +374,10 @@ namespace MammoListeApp
                 ws.Cell(1, 1).Value = $"Mammographies de Dépistage — {dateFr}  —  {GetSalleLabel()}";
                 ws.Cell(1, 1).Style.Font.Bold = true;
                 ws.Cell(1, 1).Style.Font.FontSize = 14;
-                ws.Range(1, 1, 1, 8).Merge();
+                ws.Range(1, 1, 1, 10).Merge();
 
                 // ── En-têtes ───────────────────────────────────────────────────
-                string[] headers = { "Salle", "Patient", "Patient ID / Matricule", "Date Naissance", "Heure", "Description", "Accession N°", "AE Source" };
+                string[] headers = { "Salle", "Patient", "Patient ID / Matricule", "Autre ID Patient", "Date Naissance", "Heure", "Description", "Accession N°", "Opérateur", "AE Source" };
                 for (int i = 0; i < headers.Length; i++)
                 {
                     var cell = ws.Cell(2, i + 1);
@@ -388,15 +395,17 @@ namespace MammoListeApp
                     ws.Cell(row, 1).Value = r.Salle;
                     ws.Cell(row, 2).Value = r.NomPatient;
                     ws.Cell(row, 3).Value = r.PatientID;
-                    ws.Cell(row, 4).Value = r.DateNaissanceFormatee;
-                    ws.Cell(row, 5).Value = r.HeureFormatee;
-                    ws.Cell(row, 6).Value = r.Description;
-                    ws.Cell(row, 7).Value = r.AccessionNumber;
-                    ws.Cell(row, 8).Value = r.SourceAETitle;
+                    ws.Cell(row, 4).Value = r.OtherPatientIDs;
+                    ws.Cell(row, 5).Value = r.DateNaissanceFormatee;
+                    ws.Cell(row, 6).Value = r.HeureFormatee;
+                    ws.Cell(row, 7).Value = r.Description;
+                    ws.Cell(row, 8).Value = r.AccessionNumber;
+                    ws.Cell(row, 9).Value = r.OperatorsName;
+                    ws.Cell(row, 10).Value = r.SourceAETitle;
 
                     // Alterner la couleur de fond
                     if (row % 2 == 0)
-                        ws.Range(row, 1, row, 8).Style.Fill.BackgroundColor = XLColor.FromHtml("#EEF2FF");
+                        ws.Range(row, 1, row, 10).Style.Fill.BackgroundColor = XLColor.FromHtml("#EEF2FF");
 
                     row++;
                 }

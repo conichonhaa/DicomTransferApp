@@ -93,6 +93,14 @@
                         </Style>
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
+                <DataGridTextColumn Header="Autre ID Patient" Binding="{Binding OtherPatientIDs}" Width="130">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="FontFamily" Value="Consolas"/>
+                            <Setter Property="Padding" Value="4,0"/>
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
                 <DataGridTextColumn Header="Date Naissance" Binding="{Binding DateNaissanceFormatee}" Width="110">
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="TextBlock">
@@ -118,6 +126,13 @@
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="TextBlock">
                             <Setter Property="FontFamily" Value="Consolas"/>
+                            <Setter Property="Padding" Value="4,0"/>
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+                <DataGridTextColumn Header="Opérateur" Binding="{Binding OperatorsName}" Width="120">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
                             <Setter Property="Padding" Value="4,0"/>
                         </Style>
                     </DataGridTextColumn.ElementStyle>
