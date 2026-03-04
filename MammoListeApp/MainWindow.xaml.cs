@@ -108,7 +108,7 @@ namespace MammoListeApp
                     return;
                 }
 
-                // ── C-FIND ─────────────────────────────────────────────────────
+                // ── C-FIND STUDY ──────────────────────────────────────────────
                 var client = DicomClientFactory.Create(
                     _config.PACSSourceIP,
                     _config.PACSSourcePort,
@@ -118,7 +118,7 @@ namespace MammoListeApp
 
                 var dataset = new DicomDataset
                 {
-                    { DicomTag.QueryRetrieveLevel, "STUDY" },   // obligatoire pour certains PACS
+                    { DicomTag.QueryRetrieveLevel, "STUDY" },
                     { DicomTag.StudyDate,          dateStr },
                     { DicomTag.PatientName,        "" },
                     { DicomTag.PatientID,          "" },
@@ -126,68 +126,95 @@ namespace MammoListeApp
                     { DicomTag.StudyInstanceUID,   "" },
                     { DicomTag.StudyDescription,   "" },
                     { DicomTag.StudyTime,          "" },
-                    // ModalitiesInStudy retiré : non supporté par certains PACS → filtre côté client
-                    { DicomTag.StationName,        "" },   // (0008,1010) - identifie la machine
                     { DicomTag.AccessionNumber,    "" },
-                    { DicomTag.Modality,           "" },   // (0008,0060) - alternative à ModalitiesInStudy
+                    { DicomTag.Modality,           "" },
                 };
 
-                var request = new DicomCFindRequest(DicomQueryRetrieveLevel.Study) { Dataset = dataset };
+                // Étape 1 : collecter les études mammographie (sans filtre salle — StationName absent au niveau STUDY)
+                var etudes = new List<MammographieEntry>();
 
+                var request = new DicomCFindRequest(DicomQueryRetrieveLevel.Study) { Dataset = dataset };
                 request.OnResponseReceived += (_, res) =>
                 {
-                    // Logger TOUJOURS le statut pour diagnostiquer
                     if (!res.HasDataset)
                     {
-                        Log($"  [C-FIND] Statut={res.Status.Description} (code={res.Status.Code:X4}) — pas de dataset");
+                        Log($"  [C-FIND STUDY] Statut={res.Status.Description} (code={res.Status.Code:X4}) — pas de dataset");
                         return;
                     }
-
-                    Log($"  [C-FIND] Statut={res.Status.Description} | dataset reçu");
-
-                    // Accepter Pending ET Success (certains PACS envoient Success sur le dernier résultat)
+                    Log($"  [C-FIND STUDY] Statut={res.Status.Description} | dataset reçu");
                     if (res.Status != DicomStatus.Pending && res.Status != DicomStatus.Success) return;
 
-                    // ── Debug : afficher ce que le PACS renvoie ────────────────
-                    string modDbg     = res.Dataset.GetSingleValueOrDefault(DicomTag.Modality, "(vide)");
-                    string descDbg    = res.Dataset.GetSingleValueOrDefault(DicomTag.StudyDescription, "(vide)");
-                    string stationDbg = res.Dataset.GetSingleValueOrDefault(DicomTag.StationName, "(vide)");
-                    string patDbg     = res.Dataset.GetSingleValueOrDefault(DicomTag.PatientName, "?");
-                    Log($"  [DEBUG] Patient={patDbg} | Mod={modDbg} | Station={stationDbg} | Desc={descDbg}");
+                    string modDbg  = res.Dataset.GetSingleValueOrDefault(DicomTag.Modality, "(vide)");
+                    string descDbg = res.Dataset.GetSingleValueOrDefault(DicomTag.StudyDescription, "(vide)");
+                    string patDbg  = res.Dataset.GetSingleValueOrDefault(DicomTag.PatientName, "?");
+                    Log($"  [DEBUG] Patient={patDbg} | Mod={modDbg} | Desc={descDbg}");
 
-                    // ── Filtrage Mammographie (mots-clés description) ─────────
                     string desc = res.Dataset.GetSingleValueOrDefault(DicomTag.StudyDescription, "");
                     if (!EstMammographie(desc)) { Log($"    → ignoré (pas mammographie)"); return; }
-
-                    // ── Filtrage Dépistage ─────────────────────────────────────
                     if (depistageSeul && !EstDepistage(desc)) { Log($"    → ignoré (pas dépistage)"); return; }
 
-                    // ── Identification de la salle ─────────────────────────────
-                    string stationName = res.Dataset.GetSingleValueOrDefault(DicomTag.StationName, "");
-                    string salle       = MapperSalle(stationName, stationName);
-
-                    // ── Filtrage par salle ─────────────────────────────────────
-                    if (!string.IsNullOrEmpty(salleFiltre))
+                    etudes.Add(new MammographieEntry
                     {
-                        bool match = stationName.Equals(salleFiltre, StringComparison.OrdinalIgnoreCase);
-                        if (!match) { Log($"    → ignoré (salle '{stationName}' ≠ filtre '{salleFiltre}')"); return; }
-                    }
-
-                    resultats.Add(new MammographieEntry
-                    {
-                        Salle            = salle,
                         NomPatient       = FormatNomDicom(res.Dataset.GetSingleValueOrDefault(DicomTag.PatientName, "")),
                         PatientID        = res.Dataset.GetSingleValueOrDefault(DicomTag.PatientID, ""),
                         DateNaissanceRaw = res.Dataset.GetSingleValueOrDefault(DicomTag.PatientBirthDate, ""),
                         HeureExamen      = res.Dataset.GetSingleValueOrDefault(DicomTag.StudyTime, ""),
                         Description      = desc,
                         StudyUID         = res.Dataset.GetSingleValueOrDefault(DicomTag.StudyInstanceUID, ""),
-                        SourceAETitle    = stationName,
+                        Salle            = "",
+                        SourceAETitle    = "",
                     });
                 };
 
                 await client.AddRequestAsync(request);
                 await client.SendAsync();
+
+                Log($"  → {etudes.Count} étude(s) mammographie trouvée(s), récupération StationName via C-FIND SERIES...");
+
+                // Étape 2 : pour chaque étude, C-FIND SERIES pour récupérer StationName (0008,1010)
+                foreach (var etude in etudes)
+                {
+                    var seriesClient = DicomClientFactory.Create(
+                        _config.PACSSourceIP,
+                        _config.PACSSourcePort,
+                        false,
+                        _config.SourceCallingAE,
+                        _config.PACSSourceAETitle);
+
+                    var seriesDataset = new DicomDataset
+                    {
+                        { DicomTag.QueryRetrieveLevel, "SERIES" },
+                        { DicomTag.StudyInstanceUID,   etude.StudyUID },
+                        { DicomTag.SeriesInstanceUID,  "" },
+                        { DicomTag.StationName,        "" },
+                        { DicomTag.Modality,           "" },
+                    };
+
+                    string stationName = "";
+                    var seriesRequest = new DicomCFindRequest(DicomQueryRetrieveLevel.Series) { Dataset = seriesDataset };
+                    seriesRequest.OnResponseReceived += (_, sRes) =>
+                    {
+                        if (!sRes.HasDataset) return;
+                        string sn = sRes.Dataset.GetSingleValueOrDefault(DicomTag.StationName, "");
+                        if (!string.IsNullOrEmpty(sn)) stationName = sn;
+                    };
+
+                    await seriesClient.AddRequestAsync(seriesRequest);
+                    await seriesClient.SendAsync();
+
+                    Log($"  [C-FIND SERIES] {etude.NomPatient} → Station={stationName}");
+
+                    // ── Filtrage par salle ─────────────────────────────────────
+                    if (!string.IsNullOrEmpty(salleFiltre))
+                    {
+                        bool match = stationName.Equals(salleFiltre, StringComparison.OrdinalIgnoreCase);
+                        if (!match) { Log($"    → ignoré (salle '{stationName}' ≠ filtre '{salleFiltre}')"); continue; }
+                    }
+
+                    etude.SourceAETitle = stationName;
+                    etude.Salle         = MapperSalle(stationName, stationName);
+                    resultats.Add(etude);
+                }
 
                 // ── Tri et affichage ───────────────────────────────────────────
                 var tries = resultats
