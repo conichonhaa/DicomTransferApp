@@ -192,8 +192,9 @@ namespace MammoListeApp
                         { DicomTag.SeriesInstanceUID,  "" },
                         { DicomTag.StationName,        "" },
                         { DicomTag.Modality,           "" },
-                        { tagPriveSource,              "" },
                     };
+                    // Tag privé : VR doit être spécifié explicitement (pas dans le dictionnaire fo-dicom)
+                    seriesDataset.Add<string>(DicomVR.LO, tagPriveSource, "");
 
                     var stationNames = new List<string>();
                     var sourcesPrivees = new List<string>();
