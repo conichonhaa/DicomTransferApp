@@ -161,6 +161,7 @@ namespace MammoListeApp
                         PatientID        = res.Dataset.GetSingleValueOrDefault(DicomTag.PatientID, ""),
                         DateNaissanceRaw = res.Dataset.GetSingleValueOrDefault(DicomTag.PatientBirthDate, ""),
                         HeureExamen      = res.Dataset.GetSingleValueOrDefault(DicomTag.StudyTime, ""),
+                        DateExamenRaw    = res.Dataset.GetSingleValueOrDefault(DicomTag.StudyDate, ""),
                         Description      = desc,
                         StudyUID         = res.Dataset.GetSingleValueOrDefault(DicomTag.StudyInstanceUID, ""),
                         AccessionNumber  = res.Dataset.GetSingleValueOrDefault(DicomTag.AccessionNumber, ""),
@@ -377,7 +378,7 @@ namespace MammoListeApp
                 ws.Range(1, 1, 1, 9).Merge();
 
                 // ── En-têtes ───────────────────────────────────────────────────
-                string[] headers = { "Salle", "Patient", "Patient ID / Matricule", "Autre ID Patient", "Date Naissance", "Heure", "Accession N°", "Opérateur", "AE Source" };
+                string[] headers = { "Salle", "Patient", "Patient ID / Matricule", "Autre ID Patient", "Date Examen", "Heure", "Accession N°", "Opérateur", "AE Source" };
                 for (int i = 0; i < headers.Length; i++)
                 {
                     var cell = ws.Cell(2, i + 1);
@@ -396,7 +397,7 @@ namespace MammoListeApp
                     ws.Cell(row, 2).Value = r.NomPatient;
                     ws.Cell(row, 3).Value = r.PatientID;
                     ws.Cell(row, 4).Value = r.OtherPatientIDs;
-                    ws.Cell(row, 5).Value = r.DateNaissanceFormatee;
+                    ws.Cell(row, 5).Value = r.DateExamenFormatee;
                     ws.Cell(row, 6).Value = r.HeureFormatee;
                     ws.Cell(row, 7).Value = r.AccessionNumber;
                     ws.Cell(row, 8).Value = r.OperatorsName;

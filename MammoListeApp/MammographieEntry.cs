@@ -7,6 +7,7 @@ namespace MammoListeApp
         public string PatientID { get; set; }
         public string DateNaissanceRaw { get; set; }
         public string HeureExamen { get; set; }
+        public string DateExamenRaw { get; set; }
         public string Description { get; set; }
         public string StudyUID { get; set; }
         public string SourceAETitle { get; set; }
@@ -15,6 +16,7 @@ namespace MammoListeApp
         public string OperatorsName { get; set; }
 
         public string DateNaissanceFormatee => FormatDate(DateNaissanceRaw);
+        public string DateExamenFormatee => FormatDate(DateExamenRaw);
         public string HeureFormatee => FormatHeure(HeureExamen);
 
         private static string FormatDate(string dicomDate)

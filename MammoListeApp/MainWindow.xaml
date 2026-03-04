@@ -101,7 +101,7 @@
                         </Style>
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
-                <DataGridTextColumn Header="Date Naissance" Binding="{Binding DateNaissanceFormatee}" Width="110">
+                <DataGridTextColumn Header="Date Examen" Binding="{Binding DateExamenFormatee}" Width="100">
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="TextBlock">
                             <Setter Property="HorizontalAlignment" Value="Center"/>
