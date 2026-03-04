@@ -374,10 +374,10 @@ namespace MammoListeApp
                 ws.Cell(1, 1).Value = $"Mammographies de Dépistage — {dateFr}  —  {GetSalleLabel()}";
                 ws.Cell(1, 1).Style.Font.Bold = true;
                 ws.Cell(1, 1).Style.Font.FontSize = 14;
-                ws.Range(1, 1, 1, 10).Merge();
+                ws.Range(1, 1, 1, 9).Merge();
 
                 // ── En-têtes ───────────────────────────────────────────────────
-                string[] headers = { "Salle", "Patient", "Patient ID / Matricule", "Autre ID Patient", "Date Naissance", "Heure", "Description", "Accession N°", "Opérateur", "AE Source" };
+                string[] headers = { "Salle", "Patient", "Patient ID / Matricule", "Autre ID Patient", "Date Naissance", "Heure", "Accession N°", "Opérateur", "AE Source" };
                 for (int i = 0; i < headers.Length; i++)
                 {
                     var cell = ws.Cell(2, i + 1);
@@ -398,14 +398,13 @@ namespace MammoListeApp
                     ws.Cell(row, 4).Value = r.OtherPatientIDs;
                     ws.Cell(row, 5).Value = r.DateNaissanceFormatee;
                     ws.Cell(row, 6).Value = r.HeureFormatee;
-                    ws.Cell(row, 7).Value = r.Description;
-                    ws.Cell(row, 8).Value = r.AccessionNumber;
-                    ws.Cell(row, 9).Value = r.OperatorsName;
-                    ws.Cell(row, 10).Value = r.SourceAETitle;
+                    ws.Cell(row, 7).Value = r.AccessionNumber;
+                    ws.Cell(row, 8).Value = r.OperatorsName;
+                    ws.Cell(row, 9).Value = r.SourceAETitle;
 
                     // Alterner la couleur de fond
                     if (row % 2 == 0)
-                        ws.Range(row, 1, row, 10).Style.Fill.BackgroundColor = XLColor.FromHtml("#EEF2FF");
+                        ws.Range(row, 1, row, 9).Style.Fill.BackgroundColor = XLColor.FromHtml("#EEF2FF");
 
                     row++;
                 }
@@ -413,7 +412,6 @@ namespace MammoListeApp
                 // ── Mise en forme ──────────────────────────────────────────────
                 ws.Columns().AdjustToContents();
                 ws.Column(2).Width = Math.Max(ws.Column(2).Width, 22); // Patient
-                ws.Column(6).Width = Math.Max(ws.Column(6).Width, 35); // Description
 
                 // Figer la ligne d'en-tête
                 ws.SheetView.FreezeRows(2);
