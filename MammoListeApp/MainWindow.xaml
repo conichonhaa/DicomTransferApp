@@ -45,6 +45,7 @@
                 <Button x:Name="btnRechercher" Content="🔍  Rechercher" Padding="12,6" Margin="0,0,10,0" FontSize="13"/>
                 <Button x:Name="btnExportExcel" Content="📊  Exporter Excel" Padding="12,6" Background="#E3F2FD" FontSize="13"/>
                 <Button x:Name="btnConfig" Content="⚙ Config PACS" Padding="8,6" Margin="10,0,0,0" FontSize="12" Foreground="#555"/>
+                <Button x:Name="btnOperateurs" Content="👤 Opérateurs" Padding="8,6" Margin="10,0,0,0" FontSize="12" Foreground="#555"/>
             </StackPanel>
         </Border>
 
@@ -93,7 +94,15 @@
                         </Style>
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
-                <DataGridTextColumn Header="Date Naissance" Binding="{Binding DateNaissanceFormatee}" Width="110">
+                <DataGridTextColumn Header="Autre ID Patient" Binding="{Binding OtherPatientIDs}" Width="130">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="FontFamily" Value="Consolas"/>
+                            <Setter Property="Padding" Value="4,0"/>
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+                <DataGridTextColumn Header="Date Examen" Binding="{Binding DateExamenFormatee}" Width="100">
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="TextBlock">
                             <Setter Property="HorizontalAlignment" Value="Center"/>
@@ -107,7 +116,15 @@
                         </Style>
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
-                <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*">
+                <DataGridTextColumn Header="Accession N°" Binding="{Binding AccessionNumber}" Width="120">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="FontFamily" Value="Consolas"/>
+                            <Setter Property="Padding" Value="4,0"/>
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+                <DataGridTextColumn Header="Opérateur" Binding="{Binding OperatorsNameFormatee}" Width="120">
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="TextBlock">
                             <Setter Property="Padding" Value="4,0"/>

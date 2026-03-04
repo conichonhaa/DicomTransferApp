@@ -924,14 +924,9 @@ namespace DicomTransferApp
             string studyDesc = dataset.GetSingleValueOrDefault(DicomTag.StudyDescription, "");
             string studyDate = dataset.GetSingleValueOrDefault(DicomTag.StudyDate, "");
 
-            string[] modalities = Array.Empty<string>();
-            if (dataset.TryGetValues(DicomTag.ModalitiesInStudy, out string[] mods))
-                modalities = mods;
-
-            bool isMG = modalities.Any(m => m.Equals("MG", StringComparison.InvariantCultureIgnoreCase));
             bool isMammo = EstMammographie(studyDesc);
 
-            if (isMG && isMammo)
+            if (isMammo)
             {
                 count++;
                 list.Add(new Mammographie
