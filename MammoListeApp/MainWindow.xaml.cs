@@ -118,39 +118,50 @@ namespace MammoListeApp
 
                 var dataset = new DicomDataset
                 {
-                    { DicomTag.StudyDate,         dateStr },
+                    { DicomTag.QueryRetrieveLevel, "STUDY" },   // obligatoire pour certains PACS
+                    { DicomTag.StudyDate,          dateStr },
                     { DicomTag.PatientName,        "" },
                     { DicomTag.PatientID,          "" },
                     { DicomTag.PatientBirthDate,   "" },
                     { DicomTag.StudyInstanceUID,   "" },
                     { DicomTag.StudyDescription,   "" },
                     { DicomTag.StudyTime,          "" },
-                    { DicomTag.ModalitiesInStudy,  "" },
+                    // ModalitiesInStudy retiré : non supporté par certains PACS → filtre côté client
                     { DicomTag.StationName,        "" },   // (0008,1010) - identifie la machine
                     { DicomTag.AccessionNumber,    "" },
+                    { DicomTag.Modality,           "" },   // (0008,0060) - alternative à ModalitiesInStudy
                 };
 
                 var request = new DicomCFindRequest(DicomQueryRetrieveLevel.Study) { Dataset = dataset };
 
                 request.OnResponseReceived += (_, res) =>
                 {
-                    if (!res.HasDataset || res.Status != DicomStatus.Pending) return;
+                    // Logger TOUJOURS le statut pour diagnostiquer
+                    if (!res.HasDataset)
+                    {
+                        Log($"  [C-FIND] Statut={res.Status.Description} (code={res.Status.Code:X4}) — pas de dataset");
+                        return;
+                    }
+
+                    Log($"  [C-FIND] Statut={res.Status.Description} | dataset reçu");
+
+                    // Accepter Pending ET Success (certains PACS envoient Success sur le dernier résultat)
+                    if (res.Status != DicomStatus.Pending && res.Status != DicomStatus.Success) return;
 
                     // ── Debug : afficher ce que le PACS renvoie ────────────────
-                    string[] modsDbg = Array.Empty<string>();
-                    res.Dataset.TryGetValues(DicomTag.ModalitiesInStudy, out modsDbg);
+                    string modDbg     = res.Dataset.GetSingleValueOrDefault(DicomTag.Modality, "(vide)");
                     string descDbg    = res.Dataset.GetSingleValueOrDefault(DicomTag.StudyDescription, "(vide)");
                     string stationDbg = res.Dataset.GetSingleValueOrDefault(DicomTag.StationName, "(vide)");
                     string patDbg     = res.Dataset.GetSingleValueOrDefault(DicomTag.PatientName, "?");
-                    Log($"  [DEBUG] Patient={patDbg} | Mods=[{string.Join(",", modsDbg ?? Array.Empty<string>())}] | Station={stationDbg} | Desc={descDbg}");
+                    Log($"  [DEBUG] Patient={patDbg} | Mod={modDbg} | Station={stationDbg} | Desc={descDbg}");
 
-                    // ── Filtrage Modalité ──────────────────────────────────────
-                    string[] mods = modsDbg;
-                    bool isMG = mods?.Any(m => m.Equals("MG", StringComparison.OrdinalIgnoreCase)) == true;
-                    if (!isMG) { Log($"    → ignoré (pas MG)"); return; }
+                    // ── Filtrage Mammographie (Modality + mots-clés description) ─
+                    string desc  = res.Dataset.GetSingleValueOrDefault(DicomTag.StudyDescription, "");
+                    bool isMG    = modDbg.Equals("MG", StringComparison.OrdinalIgnoreCase);
+                    bool isMammo = EstMammographie(desc);
+                    if (!isMG || !isMammo) { Log($"    → ignoré (isMG={isMG}, isMammo={isMammo})"); return; }
 
                     // ── Filtrage Dépistage ─────────────────────────────────────
-                    string desc = res.Dataset.GetSingleValueOrDefault(DicomTag.StudyDescription, "");
                     if (depistageSeul && !EstDepistage(desc)) { Log($"    → ignoré (pas dépistage)"); return; }
 
                     // ── Identification de la salle ─────────────────────────────
@@ -244,11 +255,20 @@ namespace MammoListeApp
             return fallback; // Retourne la valeur brute si non mappée
         }
 
+        private bool EstMammographie(string description)
+        {
+            if (string.IsNullOrEmpty(description)) return false;
+            string desc = Normalize(description);
+            string[] motsCles = { "mammographie", "mammo", "breast", "depistage" };
+            bool ok = motsCles.Any(k => desc.Contains(k));
+            if (ok) Log($"  → Mammographie détectée : {description}");
+            return ok;
+        }
+
         private static bool EstDepistage(string description)
         {
             if (string.IsNullOrWhiteSpace(description)) return false;
-            string d = Normalize(description); // tout en minuscules, sans accents
-            return d.Contains("mammographie de depistage");
+            return description.Equals("Mammographie de Depistage", StringComparison.OrdinalIgnoreCase);
         }
 
         private static string Normalize(string s)
