@@ -15,21 +15,12 @@ namespace MammoListeApp
         public string OtherPatientIDs { get; set; }
         public string OperatorsName { get; set; }
         public string ScheduledStartTimeRaw { get; set; }   // (0040,0003) via MWL
-        // Champs TEST
-        public string AdmittingDateRaw   { get; set; }   // (0038,0020) STUDY
-        public string AdmittingTimeRaw   { get; set; }   // (0038,0021) STUDY
-        public string PerfStepDateRaw    { get; set; }   // (0040,0244) SERIES
-        public string PerfStepTimeRaw    { get; set; }   // (0040,0245) SERIES
 
         public string DateNaissanceFormatee      => FormatDate(DateNaissanceRaw);
         public string DateExamenFormatee         => FormatDate(DateExamenRaw);
         public string HeureFormatee              => FormatHeure(HeureExamen);
         public string OperatorsNameFormatee      => OperateurMappingService.Resolve(OperatorsName);
         public string ScheduledStartTimeFormatee => FormatHeure(ScheduledStartTimeRaw);
-        public string AdmittingDateFormatee  => FormatDate(AdmittingDateRaw);
-        public string AdmittingTimeFormatee  => FormatHeure(AdmittingTimeRaw);
-        public string PerfStepDateFormatee   => FormatDate(PerfStepDateRaw);
-        public string PerfStepTimeFormatee   => FormatHeure(PerfStepTimeRaw);
 
         private static string FormatDate(string dicomDate)
         {

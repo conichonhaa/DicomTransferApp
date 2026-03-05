@@ -132,19 +132,6 @@
                         </Style>
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
-                <!-- Colonnes TEST temporaires -->
-                <DataGridTextColumn Header="[TEST] 0038,0020 date" Binding="{Binding AdmittingDateFormatee}" Width="120">
-                    <DataGridTextColumn.ElementStyle><Style TargetType="TextBlock"><Setter Property="Foreground" Value="#B71C1C"/><Setter Property="HorizontalAlignment" Value="Center"/></Style></DataGridTextColumn.ElementStyle>
-                </DataGridTextColumn>
-                <DataGridTextColumn Header="[TEST] 0038,0021 heure" Binding="{Binding AdmittingTimeFormatee}" Width="125">
-                    <DataGridTextColumn.ElementStyle><Style TargetType="TextBlock"><Setter Property="Foreground" Value="#B71C1C"/><Setter Property="HorizontalAlignment" Value="Center"/></Style></DataGridTextColumn.ElementStyle>
-                </DataGridTextColumn>
-                <DataGridTextColumn Header="[TEST] 0040,0244 date" Binding="{Binding PerfStepDateFormatee}" Width="120">
-                    <DataGridTextColumn.ElementStyle><Style TargetType="TextBlock"><Setter Property="Foreground" Value="#B71C1C"/><Setter Property="HorizontalAlignment" Value="Center"/></Style></DataGridTextColumn.ElementStyle>
-                </DataGridTextColumn>
-                <DataGridTextColumn Header="[TEST] 0040,0245 heure" Binding="{Binding PerfStepTimeFormatee}" Width="125">
-                    <DataGridTextColumn.ElementStyle><Style TargetType="TextBlock"><Setter Property="Foreground" Value="#B71C1C"/><Setter Property="HorizontalAlignment" Value="Center"/></Style></DataGridTextColumn.ElementStyle>
-                </DataGridTextColumn>
                 <DataGridTextColumn Header="AE Source" Binding="{Binding SourceAETitle}" Width="120">
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="TextBlock">
