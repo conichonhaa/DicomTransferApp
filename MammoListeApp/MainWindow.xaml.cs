@@ -273,6 +273,8 @@ namespace MammoListeApp
                     mwlRequest.Dataset = new DicomDataset
                     {
                         { DicomTag.PatientID, "" },
+                        { DicomTag.PatientName, "" },
+                        { new DicomTag(0x0010, 0x1000), "" },          // OtherPatientIDs (matricule)
                         { DicomTag.AccessionNumber, "" },
                         { DicomTag.ScheduledProcedureStepSequence, new DicomDataset
                             {
@@ -284,14 +286,17 @@ namespace MammoListeApp
                         },
                     };
 
-                    // AccessionNumber → heure planifiée
-                    // PatientID → heure planifiée (l'AccessionNumber MWL ≠ AccessionNumber étude)
-                    var mwlLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    // Clé = OtherPatientIDs (matricule) → heure planifiée
+                    // Fallback : PatientName normalisé
+                    var mwlByMatricule  = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    var mwlByName       = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
                     mwlRequest.OnResponseReceived += (_, mRes) =>
                     {
                         if (!mRes.HasDataset) return;
-                        string pid = mRes.Dataset.GetSingleValueOrDefault(DicomTag.PatientID, "");
+                        string matricule = mRes.Dataset.GetSingleValueOrDefault(new DicomTag(0x0010, 0x1000), "");
+                        string pid       = mRes.Dataset.GetSingleValueOrDefault(DicomTag.PatientID, "");
+                        string name      = mRes.Dataset.GetSingleValueOrDefault(DicomTag.PatientName, "");
                         string scheduledTime = "";
                         if (mRes.Dataset.Contains(DicomTag.ScheduledProcedureStepSequence))
                         {
@@ -299,22 +304,33 @@ namespace MammoListeApp
                             if (seq.Items.Count > 0)
                                 scheduledTime = seq.Items[0].GetSingleValueOrDefault(DicomTag.ScheduledProcedureStepStartTime, "");
                         }
-                        Log($"  [MWL] PatientID={pid} | HeureplanifiéeRaw={scheduledTime}");
-                        if (!string.IsNullOrEmpty(pid) && !string.IsNullOrEmpty(scheduledTime))
-                            mwlLookup[pid] = scheduledTime;
+                        Log($"  [MWL] Matricule={matricule} | PID={pid} | Name={name} | Heure={scheduledTime}");
+                        if (string.IsNullOrEmpty(scheduledTime)) return;
+                        if (!string.IsNullOrEmpty(matricule)) mwlByMatricule.TryAdd(matricule, scheduledTime);
+                        if (!string.IsNullOrEmpty(name))      mwlByName.TryAdd(name.ToUpperInvariant(), scheduledTime);
                     };
 
                     await mwlClient.AddRequestAsync(mwlRequest);
                     await mwlClient.SendAsync();
-                    Log($"  [MWL] {mwlLookup.Count} heure(s) planifiée(s) récupérée(s)");
+                    Log($"  [MWL] {mwlByMatricule.Count} par matricule, {mwlByName.Count} par nom");
 
-                    // Enrichir les résultats via PatientID
+                    // Enrichir : matricule en priorité, puis nom DICOM brut
                     foreach (var r in resultats)
                     {
-                        bool found = !string.IsNullOrEmpty(r.PatientID)
-                                     && mwlLookup.TryGetValue(r.PatientID, out var st);
-                        Log($"  [MWL MATCH] {r.NomPatient} | PatientID='{r.PatientID}' | trouvé={found}{(found ? $" → {mwlLookup[r.PatientID]}" : "")}");
-                        if (found) r.ScheduledStartTimeRaw = mwlLookup[r.PatientID];
+                        if (!string.IsNullOrEmpty(r.OtherPatientIDs) && mwlByMatricule.TryGetValue(r.OtherPatientIDs, out var st1))
+                        {
+                            r.ScheduledStartTimeRaw = st1;
+                            Log($"  [MWL MATCH] {r.NomPatient} → matricule '{r.OtherPatientIDs}' ✓ {st1}");
+                        }
+                        else if (!string.IsNullOrEmpty(r.NomPatient) && mwlByName.TryGetValue(r.NomPatient.ToUpperInvariant(), out var st2))
+                        {
+                            r.ScheduledStartTimeRaw = st2;
+                            Log($"  [MWL MATCH] {r.NomPatient} → nom ✓ {st2}");
+                        }
+                        else
+                        {
+                            Log($"  [MWL MATCH] {r.NomPatient} | Matricule='{r.OtherPatientIDs}' → non trouvé");
+                        }
                     }
                 }
                 catch (Exception mwlEx)
