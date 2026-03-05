@@ -311,9 +311,10 @@ namespace MammoListeApp
                     // Enrichir les résultats via PatientID
                     foreach (var r in resultats)
                     {
-                        if (!string.IsNullOrEmpty(r.PatientID)
-                            && mwlLookup.TryGetValue(r.PatientID, out var st))
-                            r.ScheduledStartTimeRaw = st;
+                        bool found = !string.IsNullOrEmpty(r.PatientID)
+                                     && mwlLookup.TryGetValue(r.PatientID, out var st);
+                        Log($"  [MWL MATCH] {r.NomPatient} | PatientID='{r.PatientID}' | trouvé={found}{(found ? $" → {mwlLookup[r.PatientID]}" : "")}");
+                        if (found) r.ScheduledStartTimeRaw = mwlLookup[r.PatientID];
                     }
                 }
                 catch (Exception mwlEx)
