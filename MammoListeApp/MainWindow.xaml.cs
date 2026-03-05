@@ -268,23 +268,21 @@ namespace MammoListeApp
                         _config.SourceCallingAE,
                         _config.PACSSourceAETitle);
 
-                    var mwlDataset = new DicomDataset();
-                    mwlDataset.Add(DicomTag.PatientID, "");
-                    mwlDataset.Add(DicomTag.AccessionNumber, "");
-                    mwlDataset.Add(DicomTag.ScheduledProcedureStepSequence, new DicomDataset
+                    // CreateWorklistQuery() positionne automatiquement le bon SOP Class (MWL)
+                    var mwlRequest = DicomCFindRequest.CreateWorklistQuery();
+                    mwlRequest.Dataset = new DicomDataset
                     {
-                        { DicomTag.ScheduledProcedureStepStartDate, dateStr },
-                        { DicomTag.ScheduledProcedureStepStartTime, "" },
-                        { DicomTag.Modality, "" },
-                        { DicomTag.ScheduledStationAETitle, "" },
-                    });
-
-                    var mwlRequest = new DicomCFindRequest(DicomQueryRetrieveLevel.NotDefined)
-                    {
-                        Dataset = mwlDataset
+                        { DicomTag.PatientID, "" },
+                        { DicomTag.AccessionNumber, "" },
+                        { DicomTag.ScheduledProcedureStepSequence, new DicomDataset
+                            {
+                                { DicomTag.ScheduledProcedureStepStartDate, dateStr },
+                                { DicomTag.ScheduledProcedureStepStartTime, "" },
+                                { DicomTag.Modality, "" },
+                                { DicomTag.ScheduledStationAETitle, "" },
+                            }
+                        },
                     };
-                    // Forcer le SOP class Modality Worklist
-                    mwlRequest.SOPClassUID = DicomUID.ModalityWorklistInformationModelFind;
 
                     // AccessionNumber → heure planifiée
                     var mwlLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
