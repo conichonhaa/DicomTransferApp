@@ -145,6 +145,8 @@ namespace MammoListeApp
                     { DicomTag.AccessionNumber,    "" },
                     { new DicomTag(0x0010, 0x1000),    "" },
                     { DicomTag.Modality,           "" },
+                    { new DicomTag(0x0032, 0x1001),    "" },   // ScheduledStudyStartTime
+                    { new DicomTag(0x0040, 0x0003),    "" },   // ScheduledProcedureStepStartTime
                 };
 
                 // Étape 1 : collecter les études mammographie (sans filtre salle — StationName absent au niveau STUDY)
@@ -180,7 +182,9 @@ namespace MammoListeApp
                         Description      = desc,
                         StudyUID         = res.Dataset.GetSingleValueOrDefault(DicomTag.StudyInstanceUID, ""),
                         AccessionNumber  = res.Dataset.GetSingleValueOrDefault(DicomTag.AccessionNumber, ""),
-                        OtherPatientIDs  = res.Dataset.GetSingleValueOrDefault(new DicomTag(0x0010, 0x1000), ""),
+                        OtherPatientIDs              = res.Dataset.GetSingleValueOrDefault(new DicomTag(0x0010, 0x1000), ""),
+                        ScheduledStudyStartTimeRaw   = res.Dataset.GetSingleValueOrDefault(new DicomTag(0x0032, 0x1001), ""),
+                        ScheduledStepStartTimeRaw    = res.Dataset.GetSingleValueOrDefault(new DicomTag(0x0040, 0x0003), ""),
                         Salle            = "",
                         SourceAETitle    = "",
                     });
