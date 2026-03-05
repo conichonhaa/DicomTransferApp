@@ -284,6 +284,8 @@ namespace MammoListeApp
                                 { DicomTag.ScheduledStationAETitle, "" },
                             }
                         },
+                        { new DicomTag(0x0040, 0x4005), "" },   // [TEST] ScheduledProcedureStepStartDateTime (UPS)
+                        { new DicomTag(0x0040, 0x4010), "" },   // [TEST] ScheduledProcedureStepModificationDateTime (UPS)
                     };
 
                     // Clé = OtherPatientIDs (matricule) → heure planifiée
@@ -304,7 +306,9 @@ namespace MammoListeApp
                             if (seq.Items.Count > 0)
                                 scheduledTime = seq.Items[0].GetSingleValueOrDefault(DicomTag.ScheduledProcedureStepStartTime, "");
                         }
-                        Log($"  [MWL] Matricule={matricule} | PID={pid} | Name={name} | Heure={scheduledTime}");
+                        string ups4005 = mRes.Dataset.GetSingleValueOrDefault(new DicomTag(0x0040, 0x4005), "");
+                        string ups4010 = mRes.Dataset.GetSingleValueOrDefault(new DicomTag(0x0040, 0x4010), "");
+                        Log($"  [MWL] Matricule={matricule} | PID={pid} | Name={name} | Heure={scheduledTime} | (0040,4005)={ups4005} | (0040,4010)={ups4010}");
                         if (string.IsNullOrEmpty(scheduledTime)) return;
                         if (!string.IsNullOrEmpty(matricule)) mwlByMatricule.TryAdd(matricule, scheduledTime);
                         // Normaliser : remplacer ^ par espace pour correspondre au format FormatNomDicom
