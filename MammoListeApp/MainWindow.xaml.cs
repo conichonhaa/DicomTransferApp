@@ -145,6 +145,8 @@ namespace MammoListeApp
                     { DicomTag.AccessionNumber,    "" },
                     { new DicomTag(0x0010, 0x1000),    "" },
                     { DicomTag.Modality,           "" },
+                    { new DicomTag(0x0038, 0x0020),    "" },   // [TEST] AdmittingDate
+                    { new DicomTag(0x0038, 0x0021),    "" },   // [TEST] AdmittingTime
                 };
 
                 // Étape 1 : collecter les études mammographie (sans filtre salle — StationName absent au niveau STUDY)
@@ -181,6 +183,8 @@ namespace MammoListeApp
                         StudyUID         = res.Dataset.GetSingleValueOrDefault(DicomTag.StudyInstanceUID, ""),
                         AccessionNumber  = res.Dataset.GetSingleValueOrDefault(DicomTag.AccessionNumber, ""),
                         OtherPatientIDs  = res.Dataset.GetSingleValueOrDefault(new DicomTag(0x0010, 0x1000), ""),
+                        AdmittingDateRaw = res.Dataset.GetSingleValueOrDefault(new DicomTag(0x0038, 0x0020), ""),
+                        AdmittingTimeRaw = res.Dataset.GetSingleValueOrDefault(new DicomTag(0x0038, 0x0021), ""),
                         Salle            = "",
                         SourceAETitle    = "",
                     });
@@ -212,6 +216,8 @@ namespace MammoListeApp
                         { DicomTag.StationName,        "" },
                         { DicomTag.OperatorsName,      "" },
                         { DicomTag.Modality,           "" },
+                        { new DicomTag(0x0040, 0x0244), "" },  // [TEST] PerformedProcedureStepStartDate
+                        { new DicomTag(0x0040, 0x0245), "" },  // [TEST] PerformedProcedureStepStartTime
                     };
                     // Tag privé : VR doit être spécifié explicitement (pas dans le dictionnaire fo-dicom)
                     seriesDataset.Add<string>(DicomVR.LO, tagPriveSource, "");
@@ -229,6 +235,10 @@ namespace MammoListeApp
                         if (!string.IsNullOrEmpty(sp)) sourcesPrivees.Add(sp);
                         string op = sRes.Dataset.GetSingleValueOrDefault(DicomTag.OperatorsName, "");
                         if (!string.IsNullOrEmpty(op)) operatorsNames.Add(op);
+                        string psd = sRes.Dataset.GetSingleValueOrDefault(new DicomTag(0x0040, 0x0244), "");
+                        string pst = sRes.Dataset.GetSingleValueOrDefault(new DicomTag(0x0040, 0x0245), "");
+                        if (!string.IsNullOrEmpty(psd)) etude.PerfStepDateRaw = psd;
+                        if (!string.IsNullOrEmpty(pst)) etude.PerfStepTimeRaw = pst;
                     };
 
                     await seriesClient.AddRequestAsync(seriesRequest);
