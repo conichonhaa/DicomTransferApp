@@ -258,6 +258,70 @@ namespace MammoListeApp
                     resultats.Add(etude);
                 }
 
+                // ── C-FIND MWL (Modality Worklist) — heure planifiée ──────────
+                try
+                {
+                    var mwlClient = DicomClientFactory.Create(
+                        _config.PACSSourceIP,
+                        _config.PACSSourcePort,
+                        false,
+                        _config.SourceCallingAE,
+                        _config.PACSSourceAETitle);
+
+                    var mwlDataset = new DicomDataset();
+                    mwlDataset.Add(DicomTag.PatientID, "");
+                    mwlDataset.Add(DicomTag.AccessionNumber, "");
+                    mwlDataset.Add(DicomTag.ScheduledProcedureStepSequence, new DicomDataset
+                    {
+                        { DicomTag.ScheduledProcedureStepStartDate, dateStr },
+                        { DicomTag.ScheduledProcedureStepStartTime, "" },
+                        { DicomTag.Modality, "" },
+                        { DicomTag.ScheduledStationAETitle, "" },
+                    });
+
+                    var mwlRequest = new DicomCFindRequest(DicomQueryRetrieveLevel.NotDefined)
+                    {
+                        Dataset = mwlDataset
+                    };
+                    // Forcer le SOP class Modality Worklist
+                    mwlRequest.SOPClassUID = DicomUID.ModalityWorklistInformationModelFind;
+
+                    // AccessionNumber → heure planifiée
+                    var mwlLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+                    mwlRequest.OnResponseReceived += (_, mRes) =>
+                    {
+                        if (!mRes.HasDataset) return;
+                        string acc = mRes.Dataset.GetSingleValueOrDefault(DicomTag.AccessionNumber, "");
+                        string scheduledTime = "";
+                        if (mRes.Dataset.Contains(DicomTag.ScheduledProcedureStepSequence))
+                        {
+                            var seq = mRes.Dataset.GetSequence(DicomTag.ScheduledProcedureStepSequence);
+                            if (seq.Items.Count > 0)
+                                scheduledTime = seq.Items[0].GetSingleValueOrDefault(DicomTag.ScheduledProcedureStepStartTime, "");
+                        }
+                        Log($"  [MWL] AccessionNumber={acc} | HeureplanifiéeRaw={scheduledTime}");
+                        if (!string.IsNullOrEmpty(acc) && !string.IsNullOrEmpty(scheduledTime))
+                            mwlLookup[acc] = scheduledTime;
+                    };
+
+                    await mwlClient.AddRequestAsync(mwlRequest);
+                    await mwlClient.SendAsync();
+                    Log($"  [MWL] {mwlLookup.Count} heure(s) planifiée(s) récupérée(s)");
+
+                    // Enrichir les résultats
+                    foreach (var r in resultats)
+                    {
+                        if (!string.IsNullOrEmpty(r.AccessionNumber)
+                            && mwlLookup.TryGetValue(r.AccessionNumber, out var st))
+                            r.ScheduledStartTimeRaw = st;
+                    }
+                }
+                catch (Exception mwlEx)
+                {
+                    Log($"  [MWL] Non disponible ou erreur : {mwlEx.Message}");
+                }
+
                 // ── Tri et affichage ───────────────────────────────────────────
                 var tries = resultats
                     .OrderBy(r => r.Salle)
