@@ -14,13 +14,11 @@ namespace MammoListeApp
         public string AccessionNumber { get; set; }
         public string OtherPatientIDs { get; set; }
         public string OperatorsName { get; set; }
-        public string ScheduledStartTimeRaw { get; set; }   // (0040,0003) via MWL
 
-        public string DateNaissanceFormatee      => FormatDate(DateNaissanceRaw);
-        public string DateExamenFormatee         => FormatDate(DateExamenRaw);
-        public string HeureFormatee              => FormatHeure(HeureExamen);
-        public string OperatorsNameFormatee      => OperateurMappingService.Resolve(OperatorsName);
-        public string ScheduledStartTimeFormatee => FormatHeure(ScheduledStartTimeRaw);
+        public string DateNaissanceFormatee => FormatDate(DateNaissanceRaw);
+        public string DateExamenFormatee    => FormatDate(DateExamenRaw);
+        public string HeureFormatee         => FormatHeure(HeureExamen);
+        public string OperatorsNameFormatee => OperateurMappingService.Resolve(OperatorsName);
 
         private static string FormatDate(string dicomDate)
         {
