@@ -285,12 +285,13 @@ namespace MammoListeApp
                     };
 
                     // AccessionNumber → heure planifiée
+                    // PatientID → heure planifiée (l'AccessionNumber MWL ≠ AccessionNumber étude)
                     var mwlLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
                     mwlRequest.OnResponseReceived += (_, mRes) =>
                     {
                         if (!mRes.HasDataset) return;
-                        string acc = mRes.Dataset.GetSingleValueOrDefault(DicomTag.AccessionNumber, "");
+                        string pid = mRes.Dataset.GetSingleValueOrDefault(DicomTag.PatientID, "");
                         string scheduledTime = "";
                         if (mRes.Dataset.Contains(DicomTag.ScheduledProcedureStepSequence))
                         {
@@ -298,20 +299,20 @@ namespace MammoListeApp
                             if (seq.Items.Count > 0)
                                 scheduledTime = seq.Items[0].GetSingleValueOrDefault(DicomTag.ScheduledProcedureStepStartTime, "");
                         }
-                        Log($"  [MWL] AccessionNumber={acc} | HeureplanifiéeRaw={scheduledTime}");
-                        if (!string.IsNullOrEmpty(acc) && !string.IsNullOrEmpty(scheduledTime))
-                            mwlLookup[acc] = scheduledTime;
+                        Log($"  [MWL] PatientID={pid} | HeureplanifiéeRaw={scheduledTime}");
+                        if (!string.IsNullOrEmpty(pid) && !string.IsNullOrEmpty(scheduledTime))
+                            mwlLookup[pid] = scheduledTime;
                     };
 
                     await mwlClient.AddRequestAsync(mwlRequest);
                     await mwlClient.SendAsync();
                     Log($"  [MWL] {mwlLookup.Count} heure(s) planifiée(s) récupérée(s)");
 
-                    // Enrichir les résultats
+                    // Enrichir les résultats via PatientID
                     foreach (var r in resultats)
                     {
-                        if (!string.IsNullOrEmpty(r.AccessionNumber)
-                            && mwlLookup.TryGetValue(r.AccessionNumber, out var st))
+                        if (!string.IsNullOrEmpty(r.PatientID)
+                            && mwlLookup.TryGetValue(r.PatientID, out var st))
                             r.ScheduledStartTimeRaw = st;
                     }
                 }
