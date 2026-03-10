@@ -14,7 +14,6 @@
            <RowDefinition Height="Auto"/>
            <RowDefinition Height="200"/>
            <RowDefinition Height="Auto"/>
-           <RowDefinition Height="Auto"/>
            <RowDefinition Height="*"/>
            <RowDefinition Height="Auto"/>
            <RowDefinition Height="150"/>
@@ -59,33 +58,12 @@
            </TextBlock>
        </Grid>
 
-       <!-- Sélection de la salle -->
-       <StackPanel
-           Orientation="Horizontal"
-           Grid.Row="2"
-           Margin="0,8,0,4"
-           VerticalAlignment="Center">
-           <TextBlock
-               Text="Salle :"
-               FontWeight="Bold"
-               VerticalAlignment="Center"
-               Margin="0,0,8,0"/>
-           <ComboBox
-               x:Name="cboSalle"
-               Width="160"
-               VerticalAlignment="Center">
-               <ComboBoxItem Content="ZK" Tag="ZKPRISTINA" IsSelected="True"/>
-               <ComboBoxItem Content="HK" Tag="HKPRISTINA"/>
-               <ComboBoxItem Content="Cloche d'Or" Tag="MCCO_MG1"/>
-           </ComboBox>
-       </StackPanel>
-
        <!-- Boutons -->
        <StackPanel
            Orientation="Horizontal"
            HorizontalAlignment="Left"
-           Grid.Row="3"
-           Margin="0,4,0,10">
+           Grid.Row="2"
+           Margin="0,10">
            <Button
                x:Name="btnConfigPACS"
                Content="Configuration PACS"
@@ -112,12 +90,11 @@
        <!-- Tableau des résultats -->
        <DataGrid
            x:Name="listViewResultats"
-           Grid.Row="4"
+           Grid.Row="3"
            AutoGenerateColumns="False"
            IsReadOnly="True"
            Margin="0,0,0,10">
            <DataGrid.Columns>
-               <DataGridTextColumn Header="Salle" Binding="{Binding Salle}" Width="90"/>
                <DataGridTextColumn Header="Patient" Binding="{Binding NomComplet}" Width="150"/>
                <DataGridTextColumn Header="Matricule" Binding="{Binding Matricule}" Width="110">
                    <DataGridTextColumn.ElementStyle>
@@ -165,13 +142,13 @@
        <TextBlock
            Text="Journal des opérations :"
            FontWeight="Bold"
-           Grid.Row="5"
+           Grid.Row="4"
            Margin="0,0,0,5"/>
 
        <!-- Zone de logs -->
        <TextBox
            x:Name="txtLog"
-           Grid.Row="6"
+           Grid.Row="5"
            TextWrapping="Wrap"
            IsReadOnly="True"
            VerticalScrollBarVisibility="Auto"

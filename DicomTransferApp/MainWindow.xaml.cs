@@ -190,7 +190,6 @@ namespace DicomTransferApp
 
                                 ResultatsTransfert.Add(new ResultatTransfert
                                 {
-                                    Salle = GetSalleSelectionnee(),
                                     NomComplet = patient.NomComplet,
                                     Matricule = patient.Matricule,
                                     DescriptionMammographie = mammographie.Description,
@@ -206,7 +205,6 @@ namespace DicomTransferApp
                                 Log($"✗ Pas de mammographie disponible pour {annee}");
                                 ResultatsTransfert.Add(new ResultatTransfert
                                 {
-                                    Salle = GetSalleSelectionnee(),
                                     NomComplet = patient.NomComplet,
                                     Matricule = patient.Matricule,
                                     DescriptionMammographie = "Pas de mammographie disponible",
@@ -223,7 +221,6 @@ namespace DicomTransferApp
                             Log($"ERREUR: {ex.Message}");
                             ResultatsTransfert.Add(new ResultatTransfert
                             {
-                                Salle = GetSalleSelectionnee(),
                                 NomComplet = patient.NomComplet,
                                 Matricule = patient.Matricule,
                                 DescriptionMammographie = $"Erreur : {ex.Message}",
@@ -320,13 +317,6 @@ namespace DicomTransferApp
             }
         }
 
-        private string GetSalleSelectionnee()
-        {
-            if (cboSalle.SelectedItem is ComboBoxItem item)
-                return item.Content?.ToString() ?? "";
-            return "";
-        }
-
         private void BtnExportExcel_Click(object sender, RoutedEventArgs e)
         {
             if (ResultatsTransfert.Count == 0)
@@ -351,7 +341,7 @@ namespace DicomTransferApp
                 var sheet = workbook.Worksheets.Add("Résultats");
 
                 // En-têtes
-                string[] headers = { "Salle", "Patient", "Matricule", "Année demandée", "Mammographie", "Date Examen", "Statut", "Remarque" };
+                string[] headers = { "Patient", "Matricule", "Année demandée", "Mammographie", "Date Examen", "Statut", "Remarque" };
                 for (int i = 0; i < headers.Length; i++)
                 {
                     var cell = sheet.Cell(1, i + 1);
@@ -364,20 +354,19 @@ namespace DicomTransferApp
                 int row = 2;
                 foreach (var r in ResultatsTransfert)
                 {
-                    sheet.Cell(row, 1).Value = r.Salle ?? "";
-                    sheet.Cell(row, 2).Value = r.NomComplet;
-                    sheet.Cell(row, 3).Value = r.Matricule;
-                    sheet.Cell(row, 4).Value = r.AnneeRecherchee;
-                    sheet.Cell(row, 5).Value = r.DescriptionMammographie;
-                    sheet.Cell(row, 6).Value = r.DateExamen;
-                    sheet.Cell(row, 7).Value = r.Statut;
+                    sheet.Cell(row, 1).Value = r.NomComplet;
+                    sheet.Cell(row, 2).Value = r.Matricule;
+                    sheet.Cell(row, 3).Value = r.AnneeRecherchee;
+                    sheet.Cell(row, 4).Value = r.DescriptionMammographie;
+                    sheet.Cell(row, 5).Value = r.DateExamen;
+                    sheet.Cell(row, 6).Value = r.Statut;
 
                     string remarque = "";
                     if (r.TypeDifference == "ANTERIEURE")
                         remarque = $"ATTENTION : Mammographie anterieure (pas de mammo en {r.AnneeRecherchee})";
                     else if (r.TypeDifference == "POSTERIEURE")
                         remarque = $"INFO : Mammographie posterieure (pas de mammo en {r.AnneeRecherchee})";
-                    sheet.Cell(row, 8).Value = remarque;
+                    sheet.Cell(row, 7).Value = remarque;
 
                     if (r.EstAntecedent)
                         sheet.Row(row).Style.Font.FontColor = XLColor.Red;
