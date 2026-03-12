@@ -1039,7 +1039,7 @@ namespace DicomTransferApp
                 {
                     Dispatcher.Invoke(() => Log($"Réponse C-MOVE : {res.Status}"));
 
-                    if (res.Status == DicomStatus.Success)
+                    if (res.Status == DicomStatus.Success || res.Status.State == DicomState.Warning)
                     {
                         moveSuccess = true;
                     }
@@ -1091,7 +1091,7 @@ namespace DicomTransferApp
                 }
                 else if (moveSuccess)
                 {
-                    Log("✓ Transfert terminé (C-MOVE Success)");
+                    Log("✓ Transfert terminé (images transférées avec avertissements de coercion)");
                     return true;
                 }
                 else
