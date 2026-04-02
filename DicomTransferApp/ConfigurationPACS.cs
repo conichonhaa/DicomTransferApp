@@ -26,6 +26,13 @@ namespace DicomTransferApp
         // AE Title pour usurpation si nécessaire
         public string UsurperAETitle { get; set; } = "MAMMOAPP1";
 
+        // Paramètres Oracle RIS
+        public string RISHost { get; set; } = "ripr01dbpr.int.hs.lu";
+        public int RISPort { get; set; } = 1543;
+        public string RISServiceName { get; set; } = "ripr01";
+        public string RISUserId { get; set; } = "sysadm";
+        public string RISPassword { get; set; } = "sysadm";
+
         // Méthode de sauvegarde
         public void Sauvegarder()
         {
