@@ -1,5 +1,6 @@
 ﻿using ClosedXML.Excel;
 using FellowOakDicom;
+using Oracle.ManagedDataAccess.Client;
 using FellowOakDicom.Network;
 using FellowOakDicom.Network.Client;
 using System;
@@ -387,9 +388,58 @@ namespace DicomTransferApp
             }
         }
 
+        private async Task<string> RechercherPatientCodeRIS(string matricule)
+        {
+            try
+            {
+                string dsn = $"(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST={_config.RISHost})(PORT={_config.RISPort})))(CONNECT_DATA=(SERVICE_NAME={_config.RISServiceName})))";
+                string connStr = $"User Id={_config.RISUserId};Password={_config.RISPassword};Data Source={dsn}";
+
+                using var conn = new OracleConnection(connStr);
+                await conn.OpenAsync();
+
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = @"SELECT P_CODE FROM sysadm.patients
+                                    WHERE (P_EXTRACODE = :niss1 OR P_SISCODE = :niss2)
+                                    AND ROWNUM = 1";
+                cmd.Parameters.Add(new OracleParameter("niss1", matricule));
+                cmd.Parameters.Add(new OracleParameter("niss2", matricule));
+
+                var result = await cmd.ExecuteScalarAsync();
+                if (result != null && result != DBNull.Value)
+                    return result.ToString();
+
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Log($"⚠ Erreur connexion RIS Oracle: {ex.Message}");
+                return null;
+            }
+        }
+
         private async Task<Mammographie> RechercherMammographie(Patient patient)
         {
             Log($"Recherche pour matricule: {patient.Matricule}");
+
+            // ═══════════════════════════════════════════════════════════════════════
+            // ÉTAPE 1 : Résolution du P_CODE dans le RIS Oracle
+            // ═══════════════════════════════════════════════════════════════════════
+            Log($"Interrogation RIS Oracle (P_EXTRACODE/P_SISCODE = {patient.Matricule})");
+            string patientCode = await RechercherPatientCodeRIS(patient.Matricule);
+
+            if (string.IsNullOrEmpty(patientCode))
+            {
+                Log($"✗ Matricule {patient.Matricule} introuvable dans le RIS");
+                return null;
+            }
+
+            Log($"✓ P_CODE RIS: {patientCode}");
+
+            // ═══════════════════════════════════════════════════════════════════════
+            // ÉTAPE 2 : Recherche PACS avec PatientID = P_CODE
+            // ═══════════════════════════════════════════════════════════════════════
+            Log($"Recherche PACS avec PatientID = {patientCode}");
 
             var client = DicomClientFactory.Create(
                 _config.PACSSourceIP,
@@ -401,21 +451,12 @@ namespace DicomTransferApp
 
             var mammographies = new List<Mammographie>();
             int foundCount = 0;
-            string patientIdTrouve = null;
-            string nomTrouve = null;
-            string dateNaissanceTrouvee = null;
 
-            // ═══════════════════════════════════════════════════════════════════════
-            // ÉTAPE 1 : Recherche directe avec OtherPatientIDs (0010,1000)
-            // ═══════════════════════════════════════════════════════════════════════
-            Log($"Étape 1: Recherche avec OtherPatientIDs (0010,1000) = {patient.Matricule}");
-
-            var requestOtherIds = new DicomCFindRequest(DicomQueryRetrieveLevel.Study)
+            var requestPacs = new DicomCFindRequest(DicomQueryRetrieveLevel.Study)
             {
                 Dataset =
         {
-            { new DicomTag(0x0010, 0x1000), patient.Matricule },
-            { DicomTag.PatientID, "" },
+            { DicomTag.PatientID, patientCode },
             { DicomTag.PatientName, "" },
             { DicomTag.PatientBirthDate, "" },
             { DicomTag.StudyInstanceUID, "" },
@@ -425,290 +466,21 @@ namespace DicomTransferApp
         }
             };
 
-            requestOtherIds.OnResponseReceived += (req, res) =>
+            requestPacs.OnResponseReceived += (req, res) =>
             {
                 if (res.HasDataset && res.Status == DicomStatus.Pending)
                 {
-                    // Récupérer PatientID, Nom et Date de naissance du premier examen trouvé
-                    if (patientIdTrouve == null)
-                    {
-                        patientIdTrouve = res.Dataset.GetSingleValueOrDefault(DicomTag.PatientID, "");
-                        nomTrouve = res.Dataset.GetSingleValueOrDefault(DicomTag.PatientName, "");
-                        dateNaissanceTrouvee = res.Dataset.GetSingleValueOrDefault(DicomTag.PatientBirthDate, "");
-
-                        if (!string.IsNullOrEmpty(patientIdTrouve))
-                        {
-                            Dispatcher.Invoke(() => Log($"✓ PatientID trouvé: {patientIdTrouve}"));
-                            if (!string.IsNullOrEmpty(nomTrouve))
-                            {
-                                Dispatcher.Invoke(() => Log($"  Nom DICOM: {nomTrouve}"));
-                            }
-                            if (!string.IsNullOrEmpty(dateNaissanceTrouvee))
-                            {
-                                Dispatcher.Invoke(() => Log($"  Date naissance: {FormatDate(dateNaissanceTrouvee)}"));
-                            }
-                        }
-                    }
-
                     AjouterSiMammographie(res.Dataset, patient, mammographies, ref foundCount);
                 }
             };
 
-            await client.AddRequestAsync(requestOtherIds);
+            await client.AddRequestAsync(requestPacs);
             await client.SendAsync();
 
             if (foundCount > 0)
-            {
-                Log($"✓ {foundCount} mammographie(s) trouvée(s) avec OtherPatientIDs");
-            }
-
-            // ═══════════════════════════════════════════════════════════════════════
-            // ÉTAPE 2 : Si aucune mammo trouvée mais PatientID récupéré
-            // ═══════════════════════════════════════════════════════════════════════
-            if (mammographies.Count == 0 && !string.IsNullOrEmpty(patientIdTrouve))
-            {
-                Log($"Étape 2: Recherche avec PatientID = {patientIdTrouve}");
-
-                // VALIDATION SYSTÉMATIQUE de l'identité (sécurité patient)
-                string dateNaissanceMatricule = ExtraireDateNaissance(patient.Matricule);
-                bool identiteValidee = ValiderIdentitePatient(
-                    patient.NomComplet,
-                    nomTrouve,
-                    dateNaissanceMatricule,
-                    dateNaissanceTrouvee
-                );
-
-                if (!identiteValidee)
-                {
-                    Log($"⚠ ATTENTION: Identité ne correspond PAS!");
-                    Log($"  → Abandon de la recherche pour éviter une erreur de patient");
-                    return null;
-                }
-
-                Log($"✓ Identité validée, recherche des mammographies...");
-
-                // Continuer la recherche avec le PatientID
-                var client2 = DicomClientFactory.Create(
-                    _config.PACSSourceIP,
-                    _config.PACSSourcePort,
-                    false,
-                    _config.SourceCallingAE,
-                    _config.PACSSourceAETitle
-                );
-
-                var requestByPatientId = new DicomCFindRequest(DicomQueryRetrieveLevel.Study)
-                {
-                    Dataset =
-            {
-                { DicomTag.PatientID, patientIdTrouve },
-                { DicomTag.PatientName, "" },
-                { DicomTag.PatientBirthDate, "" },
-                { DicomTag.StudyInstanceUID, "" },
-                { DicomTag.StudyDescription, "" },
-                { DicomTag.StudyDate, "" },
-                { DicomTag.ModalitiesInStudy, "" }
-            }
-                };
-
-                int foundCountEtape2 = 0;
-
-                requestByPatientId.OnResponseReceived += (req, res) =>
-                {
-                    if (res.HasDataset && res.Status == DicomStatus.Pending)
-                    {
-                        AjouterSiMammographie(res.Dataset, patient, mammographies, ref foundCountEtape2);
-                    }
-                };
-
-                await client2.AddRequestAsync(requestByPatientId);
-                await client2.SendAsync();
-
-                if (foundCountEtape2 > 0)
-                {
-                    Log($"✓ {foundCountEtape2} mammographie(s) trouvée(s) avec PatientID");
-                }
-                else
-                {
-                    Log($"ℹ Patient identifié (PatientID: {patientIdTrouve}) mais aucune mammographie dans le PACS");
-                }
-            }
-
-            // ═══════════════════════════════════════════════════════════════════════
-            // ÉTAPE 3 : Si toujours rien, essayer recherche directe sur PatientID
-            //           (cas où le matricule = PatientID)
-            // ═══════════════════════════════════════════════════════════════════════
-            if (mammographies.Count == 0 && patientIdTrouve == null)
-            {
-                Log($"Étape 3: Recherche directe avec PatientID (0010,0020) = {patient.Matricule}");
-
-                var client3 = DicomClientFactory.Create(
-                    _config.PACSSourceIP,
-                    _config.PACSSourcePort,
-                    false,
-                    _config.SourceCallingAE,
-                    _config.PACSSourceAETitle
-                );
-
-                var requestDirectPatientId = new DicomCFindRequest(DicomQueryRetrieveLevel.Study)
-                {
-                    Dataset =
-            {
-                { DicomTag.PatientID, patient.Matricule },
-                { DicomTag.PatientName, "" },
-                { DicomTag.PatientBirthDate, "" },
-                { DicomTag.StudyInstanceUID, "" },
-                { DicomTag.StudyDescription, "" },
-                { DicomTag.StudyDate, "" },
-                { DicomTag.ModalitiesInStudy, "" }
-            }
-                };
-
-                int foundCountEtape3 = 0;
-                string nomPatientIdDirect = null;
-                string dateNaissancePatientIdDirect = null;
-                bool identiteValideeEtape3 = false;
-
-                requestDirectPatientId.OnResponseReceived += (req, res) =>
-                {
-                    if (res.HasDataset && res.Status == DicomStatus.Pending)
-                    {
-                        // Validation de l'identité à la première réponse
-                        if (nomPatientIdDirect == null)
-                        {
-                            nomPatientIdDirect = res.Dataset.GetSingleValueOrDefault(DicomTag.PatientName, "");
-                            dateNaissancePatientIdDirect = res.Dataset.GetSingleValueOrDefault(DicomTag.PatientBirthDate, "");
-
-                            if (!string.IsNullOrEmpty(nomPatientIdDirect))
-                            {
-                                Dispatcher.Invoke(() => Log($"  Nom DICOM: {nomPatientIdDirect}"));
-                            }
-                            if (!string.IsNullOrEmpty(dateNaissancePatientIdDirect))
-                            {
-                                Dispatcher.Invoke(() => Log($"  Date naissance: {FormatDate(dateNaissancePatientIdDirect)}"));
-                            }
-
-                            // VALIDATION SYSTÉMATIQUE de l'identité (sécurité patient)
-                            string dateNaissanceMatricule = ExtraireDateNaissance(patient.Matricule);
-                            identiteValideeEtape3 = ValiderIdentitePatient(
-                                patient.NomComplet,
-                                nomPatientIdDirect,
-                                dateNaissanceMatricule,
-                                dateNaissancePatientIdDirect
-                            );
-
-                            if (!identiteValideeEtape3)
-                            {
-                                Dispatcher.Invoke(() => Log($"⚠ ATTENTION: Identité ne correspond PAS (PatientID direct)"));
-                                Dispatcher.Invoke(() => Log($"  → Résultats ignorés pour éviter une erreur de patient"));
-                            }
-                            else
-                            {
-                                Dispatcher.Invoke(() => Log($"✓ Identité validée (PatientID direct)"));
-                            }
-                        }
-
-                        // N'ajouter que si l'identité est validée
-                        if (identiteValideeEtape3)
-                        {
-                            AjouterSiMammographie(res.Dataset, patient, mammographies, ref foundCountEtape3);
-                        }
-                    }
-                };
-
-                await client3.AddRequestAsync(requestDirectPatientId);
-                await client3.SendAsync();
-
-                if (foundCountEtape3 > 0)
-                {
-                    Log($"✓ {foundCountEtape3} mammographie(s) trouvée(s) avec PatientID direct");
-                }
-            }
-
-            // ═══════════════════════════════════════════════════════════════════════
-            // ÉTAPE 4 : Recherche par date de naissance (dernier recours)
-            //           AVEC VALIDATION du nom pour éviter les erreurs de patient
-            // ═══════════════════════════════════════════════════════════════════════
-            if (mammographies.Count == 0 && patientIdTrouve == null && patient.Matricule.Length >= 8)
-            {
-                string dateNaissance = ExtraireDateNaissance(patient.Matricule);
-                Log($"Étape 4: Recherche par date de naissance (0010,0030) = {FormatDate(dateNaissance)}");
-                Log($"  ⚠ Recherche large → validation du nom OBLIGATOIRE");
-
-                var client4 = DicomClientFactory.Create(
-                    _config.PACSSourceIP,
-                    _config.PACSSourcePort,
-                    false,
-                    _config.SourceCallingAE,
-                    _config.PACSSourceAETitle
-                );
-
-                var requestByBirthDate = new DicomCFindRequest(DicomQueryRetrieveLevel.Study)
-                {
-                    Dataset =
-            {
-                { DicomTag.PatientBirthDate, dateNaissance },
-                { DicomTag.PatientID, "" },
-                { DicomTag.PatientName, "" },
-                { DicomTag.StudyInstanceUID, "" },
-                { DicomTag.StudyDescription, "" },
-                { DicomTag.StudyDate, "" },
-                { DicomTag.ModalitiesInStudy, "" }
-            }
-                };
-
-                int foundCountEtape4 = 0;
-                var patientsValidation = new Dictionary<string, bool>(); // PatientID -> Validé ou non
-
-                requestByBirthDate.OnResponseReceived += (req, res) =>
-                {
-                    if (res.HasDataset && res.Status == DicomStatus.Pending)
-                    {
-                        string nom = res.Dataset.GetSingleValueOrDefault(DicomTag.PatientName, "");
-                        string pid = res.Dataset.GetSingleValueOrDefault(DicomTag.PatientID, "");
-
-                        // Valider l'identité de chaque patient trouvé
-                        if (!patientsValidation.ContainsKey(pid))
-                        {
-                            // VALIDATION SYSTÉMATIQUE par le nom (sécurité patient)
-                            bool nomValide = NomPrenomMatch(patient.NomComplet, nom);
-
-                            patientsValidation[pid] = nomValide;
-
-                            if (nomValide)
-                            {
-                                Dispatcher.Invoke(() => Log($"  ✓ Patient validé: {nom} (ID: {pid})"));
-                            }
-                            else
-                            {
-                                Dispatcher.Invoke(() => Log($"  ✗ Patient rejeté (nom ne correspond pas): {nom} (ID: {pid})"));
-                            }
-                        }
-
-                        // N'ajouter QUE si le patient est validé
-                        if (patientsValidation[pid])
-                        {
-                            AjouterSiMammographie(res.Dataset, patient, mammographies, ref foundCountEtape4);
-                        }
-                    }
-                };
-
-                await client4.AddRequestAsync(requestByBirthDate);
-                await client4.SendAsync();
-
-                if (foundCountEtape4 > 0)
-                {
-                    Log($"✓ {foundCountEtape4} mammographie(s) trouvée(s) par date de naissance (après validation du nom)");
-                }
-                else if (patientsValidation.Count > 0)
-                {
-                    int rejetes = patientsValidation.Count(kv => !kv.Value);
-                    if (rejetes > 0)
-                    {
-                        Log($"⚠ {rejetes} patient(s) avec même date de naissance rejeté(s) (nom ne correspond pas)");
-                    }
-                    Log($"ℹ Aucune mammographie trouvée pour le patient recherché");
-                }
-            }
+                Log($"✓ {foundCount} mammographie(s) trouvée(s) pour PatientID {patientCode}");
+            else
+                Log($"ℹ Aucune mammographie dans le PACS pour PatientID {patientCode}");
 
             // ═══════════════════════════════════════════════════════════════════════
             // FILTRAGE DES EXAMENS FUTURS ET TROP RÉCENTS
