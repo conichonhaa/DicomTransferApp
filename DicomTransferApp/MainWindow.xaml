@@ -85,6 +85,14 @@
                Content="📊 Exporter Excel"
                Padding="10,5"
                Background="#E3F2FD"/>
+           <CheckBox
+               x:Name="chkIncludeRecents"
+               Content="Inclure examens récents (&lt; 1 mois)"
+               VerticalAlignment="Center"
+               Margin="15,0,0,0"
+               Foreground="DarkOrange"
+               FontWeight="SemiBold"
+               ToolTip="Débrider le filtre : inclure les examens de moins d'1 mois"/>
        </StackPanel>
 
        <!-- Tableau des résultats -->

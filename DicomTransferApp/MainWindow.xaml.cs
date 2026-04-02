@@ -490,6 +490,8 @@ namespace DicomTransferApp
             var aujourdhui = DateTime.Today;
             var dateMinimale = aujourdhui.AddMonths(-1); // Il y a 1 mois
 
+            bool inclureRecents = Dispatcher.Invoke(() => chkIncludeRecents.IsChecked == true);
+
             var mammographiesValides = mammographies.Where(m =>
             {
                 if (string.IsNullOrEmpty(m.Date) || m.Date.Length < 8)
@@ -501,8 +503,8 @@ namespace DicomTransferApp
                     if (dateMammo > aujourdhui)
                         return false;
 
-                    // Éliminer si moins de 1 mois
-                    if (dateMammo > dateMinimale)
+                    // Éliminer si moins de 1 mois (sauf si mode débridé activé)
+                    if (!inclureRecents && dateMammo > dateMinimale)
                         return false;
 
                     return true;
