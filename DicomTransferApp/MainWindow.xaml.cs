@@ -1040,8 +1040,8 @@ namespace DicomTransferApp
                 string apres = position + valeur.Length < texte.Length ?
                     texte.Substring(position + valeur.Length, Math.Min(2, texte.Length - position - valeur.Length)).ToLower() : "";
 
-                // Si "rx" est trouvé juste avant ou après, ignorer
-                if (avant.Contains("rx") || apres.Contains("rx"))
+                // Si "rx" est trouvé juste avant, ignorer (ex: "rx2011" = code examen, pas une année)
+                if (avant.Contains("rx"))
                     continue;
 
                 if (valeur.Length == 2)
