@@ -398,16 +398,33 @@ namespace DicomTransferApp
                 using var conn = new OracleConnection(connStr);
                 await conn.OpenAsync();
 
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = @"SELECT P_CODE FROM sysadm.patients
-                                    WHERE (P_EXTRACODE = :niss1 OR P_SISCODE = :niss2)
-                                    AND ROWNUM = 1";
-                cmd.Parameters.Add(new OracleParameter("niss1", matricule));
-                cmd.Parameters.Add(new OracleParameter("niss2", matricule));
+                // Priorité 1 : P_EXTRACODE
+                using (var cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = @"SELECT P_CODE FROM sysadm.patients
+                                        WHERE P_EXTRACODE = :niss AND ROWNUM = 1";
+                    cmd.Parameters.Add(new OracleParameter("niss", matricule));
+                    var result = await cmd.ExecuteScalarAsync();
+                    if (result != null && result != DBNull.Value)
+                    {
+                        Log($"✓ P_CODE trouvé via P_EXTRACODE");
+                        return result.ToString();
+                    }
+                }
 
-                var result = await cmd.ExecuteScalarAsync();
-                if (result != null && result != DBNull.Value)
-                    return result.ToString();
+                // Fallback : P_SISCODE (uniquement valeurs à 13 chiffres)
+                using (var cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = @"SELECT P_CODE FROM sysadm.patients
+                                        WHERE P_SISCODE = :niss AND LENGTH(P_SISCODE) = 13 AND ROWNUM = 1";
+                    cmd.Parameters.Add(new OracleParameter("niss", matricule));
+                    var result = await cmd.ExecuteScalarAsync();
+                    if (result != null && result != DBNull.Value)
+                    {
+                        Log($"✓ P_CODE trouvé via P_SISCODE");
+                        return result.ToString();
+                    }
+                }
 
                 return null;
             }
